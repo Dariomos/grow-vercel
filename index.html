@@ -7,12 +7,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="apple-mobile-web-app-title" content="Grow"/>
-  <meta name="application-name" content="Grow"/>
   <meta name="theme-color" content="#3D6B4F"/>
   <link rel="manifest" href="/manifest.json"/>
   <link rel="apple-touch-icon" href="icons/icon-192.png"/>
-  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png"/>
-  <link rel="apple-touch-icon" sizes="144x144" href="icons/icon-144.png"/>
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
   <title>Grow · Building Together</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -27,8 +24,6 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
 @keyframes bt-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
 @keyframes bt-rise2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes bt-bloom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
-@keyframes bt-sway{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
-@keyframes bt-pulse{0%,100%{opacity:.4;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
 @keyframes bt-breathe{0%,100%{box-shadow:0 0 0 0 #3D6B4F22}50%{box-shadow:0 0 0 10px #3D6B4F00}}
 @keyframes bt-fadein{from{opacity:0}to{opacity:1}}
 @keyframes bt-leaf{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}
@@ -55,12 +50,8 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
 <body>
   <div id="splash"><div id="splash-icon">🌱</div><div id="splash-title">Grow</div><div id="splash-sub">by Building Together</div></div>
   <div id="install-banner">
-    <div style="flex:1">
-      <div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar Grow</div>
-      <div style="font-size:12px;opacity:.8">Añade a tu pantalla de inicio</div>
-    </div>
-    <button id="install-btn">Instalar</button>
-    <button id="dismiss-btn">✕</button>
+    <div style="flex:1"><div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar Grow</div><div style="font-size:12px;opacity:.8">Añade a tu pantalla de inicio</div></div>
+    <button id="install-btn">Instalar</button><button id="dismiss-btn">✕</button>
   </div>
   <div id="root"></div>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1830,157 +1821,259 @@ const COMM_BUDDIES = [
 /* ═══════════════════════════════════════════════════════════════
    CALENDAR EVENT CARD — Visualiza una actividad programada
    ═══════════════════════════════════════════════════════════════ */
-function CalendarCard({ event, pillar, onSchedule }) {
-  const [notifStatus, setNotifStatus] = useState("idle"); // idle|requesting|granted|denied
-  const [scheduled,   setScheduled]   = useState(false);
+function CalendarCard({ event, pillar, onAddTasks }) {
+  const today = new Date().toISOString().slice(0,10);
+  const [ev, setEv]         = useState({ ...event, startDate: today });
+  const [editing, setEditing] = useState(false);
+  const [saved,   setSaved]   = useState(false);
+  const [notifOk, setNotifOk] = useState(Notification?.permission === "granted");
+  // Recurrence options
+  const [repeat,  setRepeat]  = useState(true);
+  const [durUnit, setDurUnit] = useState("semanas"); // semanas | dias
+  const [durVal,  setDurVal]  = useState(3);
 
   const pillarData = ALL_PILLARS.find(p=>p.id===pillar) || ALL_PILLARS[0];
+  const DIAS_ALL = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+  const daysMap  = { lunes:"L", martes:"M", miércoles:"X", jueves:"J", viernes:"V", sábado:"S", domingo:"D" };
 
-  async function requestNotifications() {
-    setNotifStatus("requesting");
-    try {
-      const perm = await Notification.requestPermission();
-      if (perm === "granted") {
-        setNotifStatus("granted");
-        scheduleNotifications(event);
-        setScheduled(true);
-        onSchedule && onSchedule(event);
-      } else {
-        setNotifStatus("denied");
-      }
-    } catch {
-      setNotifStatus("denied");
-    }
+  // Compute endDate from durVal + durUnit
+  function computeEnd(start, val, unit) {
+    const d = new Date(start+"T12:00");
+    if (unit === "semanas") d.setDate(d.getDate() + val*7 - 1);
+    else d.setDate(d.getDate() + val - 1);
+    return d.toISOString().slice(0,10);
   }
 
-  function scheduleNotifications(ev) {
-    const now = new Date();
-    const start = new Date(ev.startDate + "T" + ev.time);
-    const end   = new Date(ev.endDate   + "T" + ev.time);
+  // Keep endDate in sync when duration changes
+  useEffect(() => {
+    setEv(p => ({ ...p, endDate: computeEnd(p.startDate, durVal, durUnit) }));
+  }, [durVal, durUnit]);
 
-    // Simulate scheduling: show immediate confirmation notification
-    if (Notification.permission === "granted") {
-      new Notification(`🌿 ${ev.title}`, {
-        body: `Programado desde ${formatDate(start)} hasta ${formatDate(end)} · ${ev.time} · cada ${ev.frecuencia}`,
-        icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>",
-        tag: "grow-activity",
+  function toggleDia(d) {
+    setEv(p => ({ ...p, dias: p.dias.includes(d) ? p.dias.filter(x=>x!==d) : [...p.dias, d] }));
+  }
+
+  function fmtDate(str) {
+    if (!str) return "";
+    return new Date(str+"T12:00").toLocaleDateString("es",{day:"numeric",month:"long"});
+  }
+
+  // Build one task per scheduled day in range
+  function buildTasks() {
+    const list = [];
+    const start = new Date(ev.startDate+"T12:00");
+    const end   = new Date(ev.endDate+"T12:00");
+    const diaNames = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+    const activeDias = ev.dias && ev.dias.length > 0 ? ev.dias : DIAS_ALL;
+    let d = new Date(start), idx = 0;
+    while (d <= end) {
+      if (activeDias.includes(diaNames[d.getDay()])) {
+        const dateStr = d.toISOString().slice(0,10);
+        list.push({
+          id: Date.now() + idx++,
+          pillarId: pillar,
+          text: ev.title + (ev.duracion ? " · " + ev.duracion : ""),
+          dueDate: dateStr,
+          time: ev.time,
+          done: false,
+          doneAt: null,
+          recurring: repeat,
+        });
+      }
+      d.setDate(d.getDate()+1);
+    }
+    return list;
+  }
+
+  async function handleSave() {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      const p = await Notification.requestPermission();
+      setNotifOk(p === "granted");
+    }
+    if (Notification?.permission === "granted") {
+      new Notification(`🌿 ${ev.title} programado`, {
+        body: `Desde hoy · ${ev.time} · ${ev.frecuencia} · ${durVal} ${durUnit}`,
+        icon: "/icons/icon-192.png",
       });
     }
-
-    // Schedule daily notifications via setTimeout for the next 24h window
-    const todayNotif = new Date();
-    const [h, m] = ev.time.split(":").map(Number);
-    todayNotif.setHours(h, m, 0, 0);
-    const msUntil = todayNotif - now;
-    const delay = msUntil > 0 ? msUntil : msUntil + 86400000; // next day if past
-
-    if (delay < 86400000 * 2) { // only schedule if within 48h
-      setTimeout(() => {
-        if (Notification.permission === "granted") {
-          new Notification(`⏰ ${ev.title}`, {
-            body: ev.notifMsg || `Es hora de tu actividad de ${pillarData.name} 🌱`,
-            tag: "grow-daily",
-          });
-        }
-      }, delay);
-    }
+    onAddTasks && onAddTasks(buildTasks());
+    setSaved(true);
+    setEditing(false);
   }
 
-  function formatDate(d) {
-    return d.toLocaleDateString("es", { day:"numeric", month:"short" });
-  }
-
-  const daysMap = { lunes:"L",martes:"M",miércoles:"X",jueves:"J",viernes:"V",sábado:"S",domingo:"D" };
+  const Field = ({label, children}) => (
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px"}}>
+      <div style={{fontSize:10,color:T.muted,marginBottom:4}}>{label}</div>
+      {children}
+    </div>
+  );
 
   return (
     <div className="bt-bloom" style={{
       background:`linear-gradient(135deg,${pillarData.color}10,${T.card})`,
-      border:`1.5px solid ${pillarData.color}55`,
-      borderRadius:18, padding:"16px 18px",
-      boxShadow:`0 6px 24px ${pillarData.color}18`,
-      marginTop:4,
+      border:`1.5px solid ${pillarData.color}55`, borderRadius:18,
+      padding:"16px 18px", boxShadow:`0 6px 24px ${pillarData.color}18`, marginTop:4,
     }}>
       {/* Header */}
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <div style={{width:42,height:42,borderRadius:13,background:pillarData.colorDim,border:`1px solid ${pillarData.color}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>
-          {pillarData.icon}
-        </div>
+        <div style={{width:42,height:42,borderRadius:13,background:pillarData.colorDim,
+          border:`1px solid ${pillarData.color}44`,display:"flex",alignItems:"center",
+          justifyContent:"center",fontSize:22,flexShrink:0}}>{pillarData.icon}</div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:T.display,fontSize:16,fontWeight:500,color:T.ink,lineHeight:1.2}}>{event.title}</div>
+          {editing
+            ? <input value={ev.title} onChange={e=>setEv(p=>({...p,title:e.target.value}))}
+                style={{fontFamily:T.display,fontSize:16,fontWeight:500,color:T.ink,
+                  background:T.surface,border:`1px solid ${pillarData.color}55`,
+                  borderRadius:8,padding:"4px 8px",width:"100%",outline:"none"}}/>
+            : <div style={{fontFamily:T.display,fontSize:16,fontWeight:500,color:T.ink,lineHeight:1.2}}>{ev.title}</div>
+          }
           <div style={{fontSize:10,color:pillarData.color,letterSpacing:1,textTransform:"uppercase",marginTop:2}}>{pillarData.name}</div>
         </div>
-        <div style={{fontFamily:T.mono,fontSize:22,color:pillarData.color,fontWeight:"bold"}}>{event.time}</div>
-      </div>
-
-      {/* Details grid */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-        {[
-          { icon:"📅", label:"Inicio",    val: new Date(event.startDate+"T12:00").toLocaleDateString("es",{day:"numeric",month:"long"}) },
-          { icon:"🏁", label:"Hasta",     val: new Date(event.endDate+"T12:00").toLocaleDateString("es",{day:"numeric",month:"long"}) },
-          { icon:"🔁", label:"Frecuencia",val: event.frecuencia },
-          { icon:"⏱️", label:"Duración",  val: event.duracion },
-        ].map((r,i)=>(
-          <div key={i} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 10px"}}>
-            <div style={{fontSize:10,color:T.muted,marginBottom:3}}>{r.icon} {r.label}</div>
-            <div style={{fontSize:12,color:T.ink,fontWeight:400}}>{r.val}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Days of week */}
-      {event.dias && event.dias.length > 0 && (
-        <div style={{display:"flex",gap:5,marginBottom:14,flexWrap:"wrap"}}>
-          {["lunes","martes","miércoles","jueves","viernes","sábado","domingo"].map(d=>{
-            const active = event.dias.includes(d);
-            return (
-              <div key={d} style={{
-                width:28,height:28,borderRadius:8,
-                background:active?pillarData.color:`${T.border}`,
-                display:"flex",alignItems:"center",justifyContent:"center",
-                fontSize:9,fontWeight:active?700:300,
-                color:active?"#fff":T.muted,
-                fontFamily:T.mono,
-                border:`1px solid ${active?pillarData.color+"88":T.border}`,
-              }}>
-                {daysMap[d]||d[0].toUpperCase()}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Nota motivacional */}
-      {event.nota && (
-        <div style={{fontSize:12,color:T.muted,fontFamily:T.display,fontStyle:"italic",lineHeight:1.6,marginBottom:14,paddingLeft:10,borderLeft:`2px solid ${pillarData.color}44`}}>
-          "{event.nota}"
-        </div>
-      )}
-
-      {/* Notification CTA */}
-      <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12}}>
-        {notifStatus==="idle" && !scheduled && (
-          <button className="bt-btn" onClick={requestNotifications}
-            style={{width:"100%",background:`linear-gradient(135deg,${pillarData.color},${pillarData.color}cc)`,border:"none",borderRadius:12,padding:"12px",color:"#fff",fontSize:13,cursor:"pointer",fontFamily:T.body,fontWeight:500,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:`0 4px 16px ${pillarData.color}44`}}>
-            🔔 Activar notificaciones diarias
+        {!saved && (
+          <button onClick={()=>setEditing(p=>!p)}
+            style={{background:editing?`${pillarData.color}22`:"transparent",
+              border:`1px solid ${pillarData.color}44`,borderRadius:8,
+              padding:"5px 10px",fontSize:11,color:pillarData.color,cursor:"pointer",fontFamily:T.body}}>
+            {editing ? "✓ Ok" : "✏️ Editar"}
           </button>
         )}
-        {notifStatus==="requesting" && (
-          <div style={{textAlign:"center",fontSize:12,color:T.muted,fontFamily:T.display,fontStyle:"italic"}}>Esperando permiso de notificaciones…</div>
-        )}
-        {(notifStatus==="granted" || scheduled) && (
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:`${pillarData.color}10`,borderRadius:10,border:`1px solid ${pillarData.color}33`}}>
-            <span style={{fontSize:16}}>✅</span>
-            <div>
-              <div style={{fontSize:12,color:pillarData.color,fontWeight:500}}>Notificaciones activadas</div>
-              <div style={{fontSize:10,color:T.muted,marginTop:1}}>Recibirás un recordatorio cada día a las {event.time}</div>
+      </div>
+
+      {/* Fields grid */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <Field label="🕐 Hora">
+          {editing
+            ? <input type="time" value={ev.time} onChange={e=>setEv(p=>({...p,time:e.target.value}))}
+                style={{fontSize:13,color:T.ink,background:"transparent",border:"none",outline:"none",fontFamily:T.mono,width:"100%"}}/>
+            : <div style={{fontSize:13,color:T.ink,fontFamily:T.mono,fontWeight:500}}>{ev.time}</div>
+          }
+        </Field>
+        <Field label="⏱️ Duración sesión">
+          {editing
+            ? <input value={ev.duracion} onChange={e=>setEv(p=>({...p,duracion:e.target.value}))}
+                placeholder="ej. 30min"
+                style={{fontSize:13,color:T.ink,background:"transparent",border:"none",outline:"none",fontFamily:T.body,width:"100%"}}/>
+            : <div style={{fontSize:13,color:T.ink}}>{ev.duracion}</div>
+          }
+        </Field>
+        <Field label="📅 Inicio (hoy)">
+          {editing
+            ? <input type="date" value={ev.startDate} onChange={e=>setEv(p=>({...p,startDate:e.target.value}))}
+                style={{fontSize:12,color:T.ink,background:"transparent",border:"none",outline:"none",fontFamily:T.body,width:"100%"}}/>
+            : <div style={{fontSize:12,color:T.ink}}>{fmtDate(ev.startDate)}</div>
+          }
+        </Field>
+        <Field label="🏁 Fin estimado">
+          <div style={{fontSize:12,color:T.ink}}>{fmtDate(ev.endDate)}</div>
+        </Field>
+      </div>
+
+      {/* Frequency */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",marginBottom:12}}>
+        <div style={{fontSize:10,color:T.muted,marginBottom:4}}>🔁 Frecuencia</div>
+        {editing
+          ? <input value={ev.frecuencia} onChange={e=>setEv(p=>({...p,frecuencia:e.target.value}))}
+              style={{fontSize:13,color:T.ink,background:"transparent",border:"none",outline:"none",fontFamily:T.body,width:"100%"}}/>
+          : <div style={{fontSize:13,color:T.ink}}>{ev.frecuencia}</div>
+        }
+      </div>
+
+      {/* Recurrence toggle + duration */}
+      <div style={{background:`${pillarData.color}08`,border:`1px solid ${pillarData.color}33`,borderRadius:12,padding:"12px 14px",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:repeat?10:0}}>
+          <div style={{fontSize:13,color:T.ink,fontWeight:400}}>🔄 ¿Se repite?</div>
+          <button onClick={()=>setRepeat(p=>!p)}
+            style={{width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",
+              background:repeat?pillarData.color:T.border,transition:"all .2s",position:"relative"}}>
+            <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",
+              position:"absolute",top:3,transition:"all .2s",
+              left:repeat?22:4,boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
+          </button>
+        </div>
+        {repeat && (
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontSize:12,color:T.muted}}>Duración total:</div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flex:1}}>
+              <button onClick={()=>setDurVal(p=>Math.max(1,p-1))}
+                style={{width:28,height:28,borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,
+                  fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.ink}}>−</button>
+              <div style={{fontFamily:T.mono,fontSize:16,color:pillarData.color,fontWeight:"bold",minWidth:24,textAlign:"center"}}>{durVal}</div>
+              <button onClick={()=>setDurVal(p=>p+1)}
+                style={{width:28,height:28,borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,
+                  fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.ink}}>+</button>
+              <div style={{display:"flex",gap:4}}>
+                {["semanas","dias"].map(u=>(
+                  <button key={u} onClick={()=>setDurUnit(u)}
+                    style={{padding:"4px 10px",borderRadius:8,border:`1px solid ${durUnit===u?pillarData.color+"66":T.border}`,
+                      background:durUnit===u?pillarData.colorDim:"transparent",
+                      fontSize:11,color:durUnit===u?T.ink:T.muted,cursor:"pointer",fontFamily:T.body}}>
+                    {u}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
-        {notifStatus==="denied" && (
-          <div style={{display:"flex",alignItems:"center",gap:8,padding:"9px 12px",background:`${T.terra}10`,borderRadius:10,border:`1px solid ${T.terra}33`}}>
-            <span style={{fontSize:14}}>🔕</span>
-            <div style={{fontSize:11,color:T.terra,lineHeight:1.5}}>
-              Notificaciones bloqueadas. Actívalas en Configuración → Notificaciones de tu navegador.
+      </div>
+
+      {/* Days of week */}
+      {ev.dias && ev.dias.length > 0 && (
+        <div style={{marginBottom:12}}>
+          <div style={{fontSize:10,color:T.muted,marginBottom:6}}>Días activos</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {DIAS_ALL.map(d => {
+              const active = ev.dias.includes(d);
+              return (
+                <button key={d} onClick={()=>editing && toggleDia(d)}
+                  style={{width:32,height:32,borderRadius:8,
+                    background:active?pillarData.color:T.border,
+                    border:`1px solid ${active?pillarData.color+"88":T.border}`,
+                    fontSize:10,fontWeight:active?700:300,
+                    color:active?"#fff":T.muted,
+                    fontFamily:T.mono,cursor:editing?"pointer":"default",transition:"all .15s"}}>
+                  {daysMap[d]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Nota */}
+      {ev.nota && (
+        <div style={{fontSize:12,color:T.muted,fontFamily:T.display,fontStyle:"italic",
+          lineHeight:1.6,marginBottom:12,paddingLeft:10,borderLeft:`2px solid ${pillarData.color}44`}}>
+          "{ev.nota}"
+        </div>
+      )}
+
+      {/* Summary */}
+      {!saved && repeat && (
+        <div style={{fontSize:11,color:T.muted,marginBottom:10,textAlign:"center",fontFamily:T.display,fontStyle:"italic"}}>
+          Se generarán ~{buildTasks().length} tareas · {fmtDate(ev.startDate)} → {fmtDate(ev.endDate)}
+        </div>
+      )}
+
+      {/* CTA */}
+      <div style={{borderTop:`1px solid ${T.border}`,paddingTop:12}}>
+        {!saved ? (
+          <button className="bt-btn" onClick={handleSave}
+            style={{width:"100%",background:`linear-gradient(135deg,${pillarData.color},${pillarData.color}cc)`,
+              border:"none",borderRadius:12,padding:"13px",color:"#fff",fontSize:14,
+              cursor:"pointer",fontFamily:T.body,fontWeight:500,
+              display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+              boxShadow:`0 4px 16px ${pillarData.color}44`}}>
+            ✅ Confirmar y agregar a Tareas
+          </button>
+        ) : (
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",
+            background:`${pillarData.color}12`,borderRadius:12,border:`1px solid ${pillarData.color}33`}}>
+            <span style={{fontSize:20}}>🌱</span>
+            <div>
+              <div style={{fontSize:13,color:pillarData.color,fontWeight:500}}>¡Plan guardado en Tareas!</div>
+              <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+                {notifOk?"🔔 Recordatorios activos · ":""}Revisa el tab Tareas
+              </div>
             </div>
           </div>
         )}
@@ -1989,10 +2082,451 @@ function CalendarCard({ event, pillar, onSchedule }) {
   );
 }
 
+
 /* ═══════════════════════════════════════════════════════════════
    ARIA CHAT — con selección de pilar y generación de calendario
    ═══════════════════════════════════════════════════════════════ */
-function AriaChat({ systemPrompt, initialMsg, myPillars }) {
+/* ═══════════════════════════════════════════════════════════════
+   SUGGEST CARD — ARIA propone actividad, usuario acepta o rechaza
+   ═══════════════════════════════════════════════════════════════ */
+function SuggestCard({ suggest, pillar, onConfirm, onDecline }) {
+  const today = new Date().toISOString().slice(0,10);
+  const [durVal,  setDurVal]  = useState(3);
+  const [durUnit, setDurUnit] = useState("semanas");
+  const [time,    setTime]    = useState(suggest.time || "07:00");
+  const [answered, setAnswered] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+
+  const pillarData = ALL_PILLARS.find(p=>p.id===(suggest.pillarId||pillar)) || ALL_PILLARS[0];
+  const DIAS_ALL = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+  const daysMap  = { lunes:"L", martes:"M", miércoles:"X", jueves:"J", viernes:"V", sábado:"S", domingo:"D" };
+
+  function computeEnd() {
+    const d = new Date(today+"T12:00");
+    if (durUnit==="semanas") d.setDate(d.getDate()+durVal*7-1);
+    else d.setDate(d.getDate()+durVal-1);
+    return d.toISOString().slice(0,10);
+  }
+
+  function fmtDate(str) {
+    return new Date(str+"T12:00").toLocaleDateString("es",{day:"numeric",month:"long"});
+  }
+
+  function buildTasks() {
+    const list = [];
+    const start = new Date(today+"T12:00");
+    const end   = new Date(computeEnd()+"T12:00");
+    const diaNames = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+    const activeDias = suggest.dias && suggest.dias.length > 0 ? suggest.dias : DIAS_ALL;
+    let d = new Date(start), idx = 0;
+    while (d <= end) {
+      if (activeDias.includes(diaNames[d.getDay()])) {
+        list.push({
+          id: Date.now()+idx++,
+          pillarId: pillarData.id,
+          text: suggest.title + (suggest.duracion ? " · "+suggest.duracion : ""),
+          dueDate: d.toISOString().slice(0,10),
+          time: time,
+          done: false,
+          doneAt: null,
+          recurring: true,
+        });
+      }
+      d.setDate(d.getDate()+1);
+    }
+    return list;
+  }
+
+  async function handleYes() {
+    if ("Notification" in window && Notification.permission !== "granted") {
+      await Notification.requestPermission();
+    }
+    if (Notification?.permission === "granted") {
+      new Notification(`🌿 ${suggest.title} programado`, {
+        body: `${time} · ${suggest.frecuencia} · ${durVal} ${durUnit}`,
+        icon: "/icons/icon-192.png",
+      });
+    }
+    const tasks = buildTasks();
+    onConfirm && onConfirm(tasks);
+    setAccepted(true);
+    setAnswered(true);
+  }
+
+  function handleNo() {
+    onDecline && onDecline();
+    setAnswered(true);
+    setAccepted(false);
+  }
+
+  if (answered) {
+    return (
+      <div style={{
+        background: accepted ? `${pillarData.color}12` : `${T.border}`,
+        border: `1px solid ${accepted ? pillarData.color+"33" : T.border}`,
+        borderRadius:14, padding:"12px 16px",
+        display:"flex", alignItems:"center", gap:10,
+      }}>
+        <span style={{fontSize:20}}>{accepted?"🌱":"👋"}</span>
+        <div>
+          <div style={{fontSize:13, color:accepted?pillarData.color:T.muted, fontWeight:500}}>
+            {accepted ? `¡Listo! "${suggest.title}" está en tus Tareas` : "De acuerdo, seguimos cuando quieras"}
+          </div>
+          {accepted && <div style={{fontSize:11,color:T.muted,marginTop:2}}>Revisa el tab Tareas · {buildTasks().length} actividades generadas</div>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bt-bloom" style={{
+      background:`linear-gradient(135deg,${pillarData.color}10,${T.card})`,
+      border:`1.5px solid ${pillarData.color}55`,
+      borderRadius:18, padding:"16px 18px",
+      boxShadow:`0 6px 24px ${pillarData.color}18`,
+    }}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <div style={{width:40,height:40,borderRadius:12,background:pillarData.colorDim,
+          border:`1px solid ${pillarData.color}44`,display:"flex",alignItems:"center",
+          justifyContent:"center",fontSize:20,flexShrink:0}}>{pillarData.icon}</div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:T.display,fontSize:16,fontWeight:500,color:T.ink}}>{suggest.title}</div>
+          <div style={{fontSize:10,color:pillarData.color,letterSpacing:1,textTransform:"uppercase",marginTop:1}}>{pillarData.name}</div>
+        </div>
+      </div>
+
+      {/* Pregunta */}
+      <div style={{fontSize:14,color:T.ink,marginBottom:14,lineHeight:1.5,fontFamily:T.display,fontStyle:"italic"}}>
+        {suggest.pregunta || `¿Agregamos "${suggest.title}" a tus tareas de ${pillarData.name}?`}
+      </div>
+
+      {/* Config compacta */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 12px"}}>
+          <div style={{fontSize:10,color:T.muted,marginBottom:4}}>🕐 Hora</div>
+          <input type="time" value={time} onChange={e=>setTime(e.target.value)}
+            style={{fontSize:13,color:T.ink,background:"transparent",border:"none",outline:"none",fontFamily:T.mono,width:"100%"}}/>
+        </div>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 12px"}}>
+          <div style={{fontSize:10,color:T.muted,marginBottom:4}}>⏱️ Sesión</div>
+          <div style={{fontSize:13,color:T.ink}}>{suggest.duracion}</div>
+        </div>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 12px"}}>
+          <div style={{fontSize:10,color:T.muted,marginBottom:4}}>🔁 Frecuencia</div>
+          <div style={{fontSize:12,color:T.ink}}>{suggest.frecuencia}</div>
+        </div>
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 12px"}}>
+          <div style={{fontSize:10,color:T.muted,marginBottom:4}}>📅 Inicio</div>
+          <div style={{fontSize:12,color:T.ink}}>{fmtDate(today)} <span style={{fontSize:10,color:pillarData.color}}>hoy</span></div>
+        </div>
+      </div>
+
+      {/* Días */}
+      {suggest.dias && suggest.dias.length > 0 && (
+        <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:12}}>
+          {DIAS_ALL.map(d=>{
+            const active = suggest.dias.includes(d);
+            return <div key={d} style={{width:28,height:28,borderRadius:7,
+              background:active?pillarData.color:T.border,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              fontSize:9,color:active?"#fff":T.muted,fontFamily:T.mono,fontWeight:active?700:300}}>
+              {daysMap[d]}
+            </div>;
+          })}
+        </div>
+      )}
+
+      {/* Duración total */}
+      <div style={{background:`${pillarData.color}08`,border:`1px solid ${pillarData.color}22`,
+        borderRadius:12,padding:"10px 14px",marginBottom:14}}>
+        <div style={{fontSize:11,color:T.muted,marginBottom:8}}>Duración del plan</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={()=>setDurVal(p=>Math.max(1,p-1))}
+            style={{width:28,height:28,borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,
+              fontSize:16,cursor:"pointer",color:T.ink,display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+          <div style={{fontFamily:T.mono,fontSize:18,color:pillarData.color,fontWeight:"bold",minWidth:24,textAlign:"center"}}>{durVal}</div>
+          <button onClick={()=>setDurVal(p=>p+1)}
+            style={{width:28,height:28,borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,
+              fontSize:16,cursor:"pointer",color:T.ink,display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+          {["semanas","dias"].map(u=>(
+            <button key={u} onClick={()=>setDurUnit(u)}
+              style={{padding:"5px 12px",borderRadius:8,
+                border:`1px solid ${durUnit===u?pillarData.color+"66":T.border}`,
+                background:durUnit===u?pillarData.colorDim:"transparent",
+                fontSize:12,color:durUnit===u?T.ink:T.muted,cursor:"pointer",fontFamily:T.body}}>
+              {u}
+            </button>
+          ))}
+        </div>
+        <div style={{fontSize:11,color:T.muted,marginTop:8,textAlign:"center",fontStyle:"italic",fontFamily:T.display}}>
+          ~{buildTasks().length} sesiones · hasta el {fmtDate(computeEnd())}
+        </div>
+      </div>
+
+      {/* Nota motivacional */}
+      {suggest.nota && (
+        <div style={{fontSize:12,color:T.muted,fontFamily:T.display,fontStyle:"italic",
+          lineHeight:1.6,marginBottom:14,paddingLeft:10,borderLeft:`2px solid ${pillarData.color}44`}}>
+          "{suggest.nota}"
+        </div>
+      )}
+
+      {/* Botones Sí / No */}
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={handleYes} className="bt-btn"
+          style={{flex:2,background:`linear-gradient(135deg,${pillarData.color},${pillarData.color}cc)`,
+            border:"none",borderRadius:12,padding:"13px",color:"#fff",fontSize:14,
+            cursor:"pointer",fontFamily:T.body,fontWeight:500,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,
+            boxShadow:`0 4px 16px ${pillarData.color}44`}}>
+          ✅ Sí, agregar a mis Tareas
+        </button>
+        <button onClick={handleNo}
+          style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,
+            borderRadius:12,padding:"13px",color:T.muted,fontSize:13,
+            cursor:"pointer",fontFamily:T.body}}>
+          No por ahora
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+/* ═══════════════════════════════════════════════════════════════
+   SUGGEST CARD — ARIA proposes adding an activity to Tasks
+   ═══════════════════════════════════════════════════════════════ */
+function SuggestCard({ suggest, pillar, onAddTasks, onDismiss }) {
+  const today = new Date().toISOString().slice(0,10);
+  const [accepted,  setAccepted]  = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [time,      setTime]      = useState(suggest.time || "08:00");
+  const [durVal,    setDurVal]    = useState(suggest.semanas || 3);
+  const [durUnit,   setDurUnit]   = useState("semanas");
+  const [repeat,    setRepeat]    = useState(true);
+
+  // Use suggest.pillarId if valid, else fall back to active pillar
+  const resolvedPillarId = suggest.pillarId || pillar;
+  const pillarData = ALL_PILLARS.find(p => p.id === resolvedPillarId) || ALL_PILLARS.find(p=>p.id===pillar) || ALL_PILLARS[0];
+
+  const DIAS_ALL = ["lunes","martes","miércoles","jueves","viernes","sábado","domingo"];
+  const daysMap  = { lunes:"L", martes:"M", miércoles:"X", jueves:"J", viernes:"V", sábado:"S", domingo:"D" };
+
+  function computeEnd() {
+    const d = new Date(today+"T12:00");
+    if (durUnit==="semanas") d.setDate(d.getDate() + durVal*7 - 1);
+    else d.setDate(d.getDate() + durVal - 1);
+    return d.toISOString().slice(0,10);
+  }
+
+  function fmtDate(str) {
+    return new Date(str+"T12:00").toLocaleDateString("es",{day:"numeric",month:"long"});
+  }
+
+  function buildTasks() {
+    const list = [];
+    const start = new Date(today+"T12:00");
+    const end   = new Date(computeEnd()+"T12:00");
+    const diaNames = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+    const activeDias = suggest.dias && suggest.dias.length > 0 ? suggest.dias : DIAS_ALL;
+    let d = new Date(start), idx = 0;
+    while (d <= end) {
+      if (!repeat || activeDias.includes(diaNames[d.getDay()])) {
+        list.push({
+          id: Date.now() + idx++,
+          pillarId: resolvedPillarId,
+          text: suggest.title + (suggest.duracion ? " · " + suggest.duracion : ""),
+          dueDate: d.toISOString().slice(0,10),
+          time: time,
+          done: false,
+          doneAt: null,
+          recurring: repeat,
+        });
+      }
+      d.setDate(d.getDate()+1);
+    }
+    return list;
+  }
+
+  function handleYes() {
+    const tasks = buildTasks();
+    onAddTasks && onAddTasks(tasks);
+    setAccepted(true);
+    if (Notification?.permission === "granted") {
+      new Notification(`🌿 ${suggest.title} agregado`, {
+        body: `${tasks.length} tareas programadas · desde hoy · ${time}`,
+        icon: "/icons/icon-192.png",
+      });
+    }
+  }
+
+  if (dismissed) return null;
+
+  return (
+    <div className="bt-bloom" style={{
+      background:`linear-gradient(135deg,${pillarData.color}12,${T.card})`,
+      border:`2px solid ${pillarData.color}66`,
+      borderRadius:18, padding:"16px",
+      boxShadow:`0 6px 28px ${pillarData.color}22`,
+      marginTop:4,
+    }}>
+      {/* Pill label */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <div style={{background:`${pillarData.color}22`,border:`1px solid ${pillarData.color}55`,
+          borderRadius:20,padding:"3px 10px",fontSize:10,color:pillarData.color,
+          letterSpacing:1,textTransform:"uppercase",fontWeight:500}}>
+          💡 ARIA sugiere
+        </div>
+        <div style={{flex:1,height:1,background:T.border}}/>
+        <button onClick={()=>setDismissed(true)}
+          style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,padding:"0 2px",opacity:.5}}>×</button>
+      </div>
+
+      {/* Activity title */}
+      <div style={{fontFamily:T.display,fontSize:19,fontWeight:400,color:T.ink,lineHeight:1.3,marginBottom:4}}>
+        {suggest.title}
+      </div>
+      <div style={{fontSize:11,color:pillarData.color,letterSpacing:1,textTransform:"uppercase",marginBottom:14}}>
+        {pillarData.icon} {pillarData.name}
+      </div>
+
+      {!accepted ? (<>
+        {/* Config row */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px"}}>
+            <div style={{fontSize:10,color:T.muted,marginBottom:4}}>🕐 Hora</div>
+            <input type="time" value={time} onChange={e=>setTime(e.target.value)}
+              style={{fontSize:14,color:T.ink,background:"transparent",border:"none",
+                outline:"none",fontFamily:T.mono,fontWeight:500,width:"100%"}}/>
+          </div>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px"}}>
+            <div style={{fontSize:10,color:T.muted,marginBottom:4}}>⏱️ Duración</div>
+            <div style={{fontSize:14,color:T.ink,fontWeight:400}}>{suggest.duracion || "—"}</div>
+          </div>
+        </div>
+
+        {/* Repeat + duration */}
+        <div style={{background:`${pillarData.color}08`,border:`1px solid ${pillarData.color}22`,
+          borderRadius:12,padding:"12px",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:repeat?10:0}}>
+            <div style={{fontSize:13,color:T.ink}}>🔄 ¿Se repite?</div>
+            <button onClick={()=>setRepeat(p=>!p)}
+              style={{width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",
+                background:repeat?pillarData.color:T.border,transition:"all .2s",position:"relative"}}>
+              <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",
+                position:"absolute",top:3,transition:"all .2s",
+                left:repeat?22:4,boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
+            </button>
+          </div>
+          {repeat && (
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:12,color:T.muted}}>Durante:</div>
+              <button onClick={()=>setDurVal(p=>Math.max(1,p-1))}
+                style={{width:26,height:26,borderRadius:7,background:T.surface,
+                  border:`1px solid ${T.border}`,fontSize:15,cursor:"pointer",color:T.ink,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>−</button>
+              <div style={{fontFamily:T.mono,fontSize:15,color:pillarData.color,
+                fontWeight:"bold",minWidth:20,textAlign:"center"}}>{durVal}</div>
+              <button onClick={()=>setDurVal(p=>p+1)}
+                style={{width:26,height:26,borderRadius:7,background:T.surface,
+                  border:`1px solid ${T.border}`,fontSize:15,cursor:"pointer",color:T.ink,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+              {["semanas","dias"].map(u=>(
+                <button key={u} onClick={()=>setDurUnit(u)}
+                  style={{padding:"4px 10px",borderRadius:8,
+                    border:`1px solid ${durUnit===u?pillarData.color+"66":T.border}`,
+                    background:durUnit===u?pillarData.colorDim:"transparent",
+                    fontSize:11,color:durUnit===u?T.ink:T.muted,
+                    cursor:"pointer",fontFamily:T.body}}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Days */}
+        {suggest.dias && suggest.dias.length > 0 && (
+          <div style={{display:"flex",gap:5,marginBottom:12,flexWrap:"wrap"}}>
+            {DIAS_ALL.map(d=>{
+              const active = suggest.dias.includes(d);
+              return (
+                <div key={d} style={{width:30,height:30,borderRadius:8,
+                  background:active?pillarData.color:T.border,
+                  border:`1px solid ${active?pillarData.color+"88":T.border}`,
+                  fontSize:10,fontWeight:active?700:300,
+                  color:active?"#fff":T.muted,
+                  fontFamily:T.mono,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {daysMap[d]}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Summary */}
+        {repeat && (
+          <div style={{fontSize:11,color:T.muted,marginBottom:12,
+            fontFamily:T.display,fontStyle:"italic",textAlign:"center"}}>
+            ~{buildTasks().length} tareas · hasta el {fmtDate(computeEnd())}
+          </div>
+        )}
+
+        {/* Note */}
+        {suggest.nota && (
+          <div style={{fontSize:12,color:T.muted,fontFamily:T.display,fontStyle:"italic",
+            lineHeight:1.6,marginBottom:14,paddingLeft:10,
+            borderLeft:`2px solid ${pillarData.color}44`}}>
+            "{suggest.nota}"
+          </div>
+        )}
+
+        {/* Question from ARIA + buttons */}
+        <div style={{background:`${pillarData.color}08`,borderRadius:12,
+          padding:"12px 14px",marginBottom:12,
+          border:`1px solid ${pillarData.color}22`}}>
+          <div style={{fontSize:13,color:T.ink,lineHeight:1.5,marginBottom:12,fontFamily:T.body}}>
+            {suggest.pregunta || `¿Agregamos "${suggest.title}" a tus tareas de ${pillarData.name}?`}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={handleYes}
+              style={{flex:1,background:`linear-gradient(135deg,${pillarData.color},${pillarData.color}cc)`,
+                border:"none",borderRadius:10,padding:"12px",
+                color:"#fff",fontSize:14,cursor:"pointer",
+                fontFamily:T.body,fontWeight:500,
+                boxShadow:`0 4px 14px ${pillarData.color}44`}}>
+              ✅ Sí, agregar
+            </button>
+            <button onClick={()=>setDismissed(true)}
+              style={{background:"transparent",border:`1px solid ${T.border}`,
+                borderRadius:10,padding:"12px 16px",
+                fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+              No ahora
+            </button>
+          </div>
+        </div>
+      </>) : (
+        /* Confirmed state */
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",
+          background:`${pillarData.color}12`,borderRadius:12,
+          border:`1px solid ${pillarData.color}33`}}>
+          <span style={{fontSize:22}}>🌱</span>
+          <div>
+            <div style={{fontSize:13,color:pillarData.color,fontWeight:500}}>¡Listo! Actividad guardada en Tareas</div>
+            <div style={{fontSize:11,color:T.muted,marginTop:2}}>
+              Revisa el tab Tareas · {pillarData.icon} {pillarData.name}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AriaChat({ systemPrompt, initialMsg, myPillars, onAddTasks }) {
   const [phase,       setPhase]       = useState("pillar_select"); // pillar_select | chat
   const [selPillar,   setSelPillar]   = useState(null);
   const [msgs,        setMsgs]        = useState([]);
@@ -2024,16 +2558,23 @@ function AriaChat({ systemPrompt, initialMsg, myPillars }) {
 
 Pilar activo en esta sesión: ${selPillar?.name} ${selPillar?.icon}.
 
-REGLA IMPORTANTE — GENERACIÓN DE CALENDARIO:
-Cuando el usuario describa una actividad concreta que quiera programar (ejercicio, meditación, estudio, etc.), responde en DOS partes:
-1. Un mensaje motivacional corto (máx 80 palabras).
-2. Inmediatamente después, un bloque JSON con este formato exacto (sin backticks, sin texto extra después):
+REGLA FUNDAMENTAL — DE LA CONVERSACIÓN A LA ACCIÓN:
+Tu rol es acompañar al usuario desde la motivación hasta una acción concreta. Flujo natural:
+1. Escucha, motiva, haz preguntas que ayuden a clarificar qué actividad quiere hacer.
+2. Cuando juntos lleguen a una actividad específica y realista — ya sea porque el usuario la mencionó, o porque tú la sugeriste y el usuario mostró interés — PROPÓN incluirla en sus tareas.
+3. Responde en DOS partes:
+   a) Mensaje motivacional corto (máx 80 palabras) que describa la actividad acordada y pregunte si la quiere programar.
+   b) Inmediatamente, sin texto extra:
 
-CALENDAR_JSON:{"title":"nombre corto de la actividad","time":"HH:MM","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","frecuencia":"diario|lunes a viernes|fines de semana|etc","duracion":"Xmin","dias":["lunes","martes","miércoles","jueves","viernes","sábado","domingo"],"nota":"frase motivacional breve","notifMsg":"texto para la notificación diaria"}
+SUGGEST_JSON:{"title":"nombre corto","time":"HH:MM","frecuencia":"diario|lunes a viernes|fines de semana|personalizado","duracion":"Xmin","dias":["lunes","martes","miércoles","jueves","viernes","sábado","domingo"],"nota":"frase motivacional breve","pillarId":"${selPillar?.id}","pregunta":"¿Agregamos esto a tus tareas de ${selPillar?.name}?"}
 
-Para startDate usa la fecha de hoy. Para endDate sugiere entre 21 y 90 días según el hábito.
-Para dias incluye solo los días correspondientes a la frecuencia.
-Si el usuario NO describe una actividad concreta todavía, NO incluyas el bloque CALENDAR_JSON.`;
+Reglas estrictas:
+- Sugiere una hora realista según el contexto del usuario (mañana, tarde, noche).
+- Incluye en "dias" solo los que correspondan a la frecuencia.
+- NO incluyas startDate ni endDate — el usuario los configurará.
+- Solo incluye SUGGEST_JSON cuando tengas una actividad concreta lista para proponer.
+- Si el usuario aún está explorando, sigue la conversación sin el bloque.
+- Si el usuario responde que NO quiere programarla, simplemente continúa la conversación sin volver a sugerir lo mismo.`;
 
     try {
       const res = await fetch("/api/aria", {
@@ -2045,7 +2586,7 @@ Si el usuario NO describe una actividad concreta todavía, NO incluyas el bloque
           system: calSystem,
           messages: (()=>{
             const apiMsgs = next
-              .filter(m => m.text && m.text.trim() && m.type !== "calendar")
+              .filter(m => m.text && m.text.trim() && m.type !== "calendar" && m.type !== "suggest")
               .map(m => ({ role: m.role, content: m.text }));
             // API requires first message to be from user
             while (apiMsgs.length > 0 && apiMsgs[0].role !== "user") apiMsgs.shift();
@@ -2059,9 +2600,23 @@ Si el usuario NO describe una actividad concreta todavía, NO incluyas el bloque
       if (!data.content) throw new Error(`Sin respuesta. Detalle: ${JSON.stringify(data).slice(0,400)}`);
       const raw  = data.content?.map(b=>b.text||"").join("") || "…";
 
-      // Parse CALENDAR_JSON if present
-      const calIdx = raw.indexOf("CALENDAR_JSON:");
-      if (calIdx !== -1) {
+      // Parse SUGGEST_JSON if present
+      const sugIdx = raw.indexOf("SUGGEST_JSON:");
+      const calIdx = raw.indexOf("CALENDAR_JSON:"); // legacy fallback
+      if (sugIdx !== -1) {
+        const jsonStr = raw.slice(sugIdx + "SUGGEST_JSON:".length).trim();
+        const msgText = raw.slice(0, sugIdx).trim();
+        try {
+          const parsed = JSON.parse(jsonStr);
+          setMsgs(p=>[...p,
+            { role:"assistant", text: msgText, type:"text" },
+            { role:"assistant", text:"", type:"suggest", suggest: parsed, pillar: selPillar?.id }
+          ]);
+        } catch {
+          setMsgs(p=>[...p, { role:"assistant", text: raw, type:"text" }]);
+        }
+      } else if (calIdx !== -1) {
+        // Legacy CALENDAR_JSON support
         const jsonStr = raw.slice(calIdx + "CALENDAR_JSON:".length).trim();
         const msgText = raw.slice(0, calIdx).trim();
         try {
@@ -2162,10 +2717,40 @@ Si el usuario NO describe una actividad concreta todavía, NO incluyas el bloque
       {/* Messages */}
       <div className="grow-scroll" style={{padding:"16px 14px",display:"flex",flexDirection:"column",gap:12,background:`linear-gradient(180deg,${T.surface},${T.bg})`}}>
         {msgs.map((m,i)=>{
+          if (m.type === "suggest") {
+            return (
+              <div key={i} className="bt-rise" style={{paddingLeft:36}}>
+                <SuggestCard
+                  suggest={m.suggest}
+                  pillar={m.pillar}
+                  onConfirm={(tasks) => {
+                    onAddTasks && onAddTasks(tasks);
+                    setMsgs(p=>[...p, { role:"user", text:"Sí, quiero programarlo", type:"text" }]);
+                    setTimeout(()=>{
+                      setMsgs(p=>[...p, { role:"assistant", text:`¡Perfecto! 🌱 "${m.suggest.title}" ya está en tu tab de Tareas. Cada día que lo completes estarás construyendo el hábito. ¿Hay algo más en lo que te pueda ayudar?`, type:"text" }]);
+                    }, 400);
+                  }}
+                  onDecline={() => {
+                    setMsgs(p=>[...p, { role:"user", text:"No por ahora", type:"text" }]);
+                    setTimeout(()=>{
+                      setMsgs(p=>[...p, { role:"assistant", text:"Entendido, sin presión 🌿 Cuando quieras retomarlo aquí estoy. ¿Qué más tienes en mente?", type:"text" }]);
+                    }, 400);
+                  }}
+                />
+              </div>
+            );
+          }
           if (m.type === "calendar") {
             return (
               <div key={i} className="bt-rise" style={{paddingLeft:36}}>
-                <CalendarCard event={m.event} pillar={m.pillar} />
+                <CalendarCard event={m.event} pillar={m.pillar} onAddTasks={onAddTasks} />
+              </div>
+            );
+          }
+          if (m.type === "suggest") {
+            return (
+              <div key={i} className="bt-rise" style={{paddingLeft:36}}>
+                <SuggestCard suggest={m.suggest} pillar={m.pillar} onAddTasks={onAddTasks} />
               </div>
             );
           }
@@ -2956,282 +3541,389 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
     const [newText,   setNewText]   = useState("");
     const [newDate,   setNewDate]   = useState("");
     const [newTime,   setNewTime]   = useState("");
+    const [newRepeat, setNewRepeat] = useState(false);
+    const [newDurVal, setNewDurVal] = useState(1);
+    const [newDurUnit,setNewDurUnit]= useState("semanas");
     const [showAdd,   setShowAdd]   = useState(false);
     const [calMonth,  setCalMonth]  = useState(new Date());
-    const [calView,   setCalView]   = useState("tasks"); // tasks | calendar
+    const [calView,   setCalView]   = useState("tasks"); // tasks | calendar | history
+    const [selDay,    setSelDay]    = useState(null);
 
+    const today = new Date().toISOString().slice(0,10);
     const pillar = ALL_PILLARS.find(p => p.id === selPillar);
-    const pillarTasks = tasks.filter(t => t.pillarId === selPillar);
-    const doneTasks   = pillarTasks.filter(t => t.done);
-    const pendingTasks = pillarTasks.filter(t => !t.done);
-    const progress = pillarTasks.length ? Math.round((doneTasks.length / pillarTasks.length) * 100) : 0;
 
-    // Streak calculation
-    const allDone = tasks.filter(t => t.done && t.doneAt);
+    // Today's pending tasks (all pillars)
+    const todayTasks   = tasks.filter(t => !t.done && t.dueDate === today);
+    // Pillar-specific tasks
+    const pillarTasks  = tasks.filter(t => t.pillarId === selPillar);
+    const todayPillar  = pillarTasks.filter(t => !t.done && t.dueDate === today);
+    const donePillar   = pillarTasks.filter(t => t.done);
+    const progress     = pillarTasks.length ? Math.round(donePillar.length / pillarTasks.length * 100) : 0;
+
+    // History: all done tasks sorted newest first
+    const history = [...tasks].filter(t => t.done && t.doneAt).sort((a,b)=>b.doneAt.localeCompare(a.doneAt));
+
+    // Streak
     const streakDays = (() => {
-      const days = new Set(allDone.map(t => t.doneAt?.slice(0,10)));
-      let streak = 0, d = new Date();
-      while (days.has(d.toISOString().slice(0,10))) {
-        streak++; d.setDate(d.getDate()-1);
-      }
+      const days = new Set(tasks.filter(t=>t.done&&t.doneAt).map(t=>t.doneAt.slice(0,10)));
+      let streak=0, d=new Date();
+      while(days.has(d.toISOString().slice(0,10))){ streak++; d.setDate(d.getDate()-1); }
       return streak;
     })();
 
-    // Calendar data
-    const year = calMonth.getFullYear(), month = calMonth.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month+1, 0).getDate();
-    const tasksByDate = {};
-    tasks.forEach(t => { if (t.dueDate) { if (!tasksByDate[t.dueDate]) tasksByDate[t.dueDate] = []; tasksByDate[t.dueDate].push(t); }});
+    // Calendar data — ALL scheduled tasks (done + pending)
+    const year=calMonth.getFullYear(), month=calMonth.getMonth();
+    const firstDay=new Date(year,month,1).getDay();
+    const daysInMonth=new Date(year,month+1,0).getDate();
+    const tasksByDate={};
+    tasks.forEach(t=>{ if(t.dueDate){ (tasksByDate[t.dueDate]=tasksByDate[t.dueDate]||[]).push(t); }});
+
+    // Build recurring tasks from manual add
+    function buildRecurring(text, startDate, time, durVal, durUnit, pillarId) {
+      const list = [];
+      const end = new Date(startDate+"T12:00");
+      if (durUnit==="semanas") end.setDate(end.getDate()+durVal*7-1);
+      else end.setDate(end.getDate()+durVal-1);
+      let d = new Date(startDate+"T12:00");
+      let idx = 0;
+      while (d <= end) {
+        list.push({ id:Date.now()+idx++, pillarId, text, dueDate:d.toISOString().slice(0,10), time, done:false, doneAt:null, recurring:true });
+        d.setDate(d.getDate()+1);
+      }
+      return list;
+    }
 
     function handleAdd() {
       if (!newText.trim()) return;
-      addTask(selPillar, newText.trim(), newDate, newTime);
-      setNewText(""); setNewDate(""); setNewTime(""); setShowAdd(false);
+      if (newRepeat && newDate) {
+        setTasks(p=>[...p,...buildRecurring(newText.trim(),newDate,newTime,newDurVal,newDurUnit,selPillar)]);
+      } else {
+        setTasks(p=>[...p,{id:Date.now(),pillarId:selPillar,text:newText.trim(),dueDate:newDate,time:newTime,done:false,doneAt:null,recurring:false}]);
+      }
+      setNewText("");setNewDate("");setNewTime("");setNewRepeat(false);setShowAdd(false);
+    }
+
+    function TaskRow({task, showDate=false}) {
+      const tp = ALL_PILLARS.find(p=>p.id===task.pillarId);
+      return (
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,
+          padding:"12px 14px",display:"flex",alignItems:"flex-start",gap:12,
+          boxShadow:`0 2px 8px ${T.sand}33`}}>
+          <button onClick={()=>toggleTask(task.id)}
+            style={{width:24,height:24,borderRadius:7,flexShrink:0,marginTop:1,
+              background:"transparent",border:`2px solid ${tp?.color||T.forest}66`,
+              cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+          </button>
+          <div style={{flex:1}}>
+            <div style={{fontSize:14,color:T.ink,fontWeight:300,lineHeight:1.5}}>{task.text}</div>
+            <div style={{fontSize:11,color:T.muted,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>
+              {showDate && task.dueDate && <span>📅 {new Date(task.dueDate+"T12:00").toLocaleDateString("es",{weekday:"short",day:"numeric",month:"short"})}</span>}
+              {task.time && <span>🕐 {task.time}</span>}
+              {task.recurring && <span style={{color:tp?.color}}>🔄 recurrente</span>}
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:tp?.color||T.forest}}/>
+            <button onClick={()=>deleteTask(task.id)}
+              style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,padding:"0 2px",opacity:.5}}>×</button>
+          </div>
+        </div>
+      );
+    }
+
+    function DoneRow({task}) {
+      const tp = ALL_PILLARS.find(p=>p.id===task.pillarId);
+      return (
+        <div style={{background:`${T.forest}06`,border:`1px solid ${T.forest}20`,
+          borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:22,height:22,borderRadius:6,background:tp?.color||T.forest,
+            flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+            color:"#fff",fontSize:12,fontWeight:"bold"}}>✓</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13,color:T.muted,fontWeight:300,textDecoration:"line-through"}}>{task.text}</div>
+            <div style={{fontSize:10,color:T.muted,marginTop:2,display:"flex",gap:8}}>
+              {task.doneAt && <span>✅ {new Date(task.doneAt).toLocaleDateString("es",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>}
+              <span style={{color:tp?.color}}>{tp?.icon} {tp?.name}</span>
+            </div>
+          </div>
+        </div>
+      );
     }
 
     return (
-      <div style={{padding:"16px 16px 100px", display:"flex", flexDirection:"column", gap:16}}>
+      <div style={{padding:"16px 16px 100px",display:"flex",flexDirection:"column",gap:14}}>
 
-        {/* Header + streak */}
-        <div className="bt-rise" style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
+        {/* Header */}
+        <div className="bt-rise" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
           <div>
-            <div style={{fontFamily:T.display, fontSize:22, fontWeight:300, color:T.ink}}>Mis Tareas</div>
-            <div style={{fontSize:11, color:T.muted, fontWeight:300}}>Actividades por pilar</div>
+            <div style={{fontFamily:T.display,fontSize:24,fontWeight:300,color:T.ink}}>Mis Tareas</div>
+            <div style={{fontSize:12,color:T.muted,fontWeight:300,marginTop:2}}>
+              {todayTasks.length > 0 ? `${todayTasks.length} para hoy` : "Todo al día por hoy 🌿"}
+            </div>
           </div>
           {streakDays > 0 && (
-            <div style={{background:`${T.amber}18`, border:`1px solid ${T.amber}44`, borderRadius:12, padding:"6px 12px", textAlign:"center"}}>
-              <div style={{fontSize:18}}>🔥</div>
-              <div style={{fontSize:11, color:T.amber, fontWeight:500}}>{streakDays} días</div>
-              <div style={{fontSize:9, color:T.muted}}>racha</div>
+            <div style={{background:`${T.amber}18`,border:`1px solid ${T.amber}44`,borderRadius:12,padding:"8px 14px",textAlign:"center"}}>
+              <div style={{fontSize:20}}>🔥</div>
+              <div style={{fontSize:13,color:T.amber,fontWeight:500}}>{streakDays} días</div>
+              <div style={{fontSize:9,color:T.muted}}>racha</div>
             </div>
           )}
         </div>
 
-        {/* View toggle */}
-        <div style={{display:"flex", background:T.card, borderRadius:12, padding:3, border:`1px solid ${T.border}`}}>
-          {[{id:"tasks",label:"📋 Tareas"},{id:"calendar",label:"📅 Calendario"}].map(v=>(
-            <button key={v.id} onClick={()=>setCalView(v.id)}
-              style={{flex:1, background:calView===v.id?T.surface:"transparent", border:calView===v.id?`1px solid ${T.border}`:"none",
-                borderRadius:10, padding:"9px", fontSize:14, color:calView===v.id?T.ink:T.muted, cursor:"pointer", fontFamily:T.body, fontWeight:calView===v.id?500:300, transition:"all .2s"}}>
+        {/* View toggle — 3 tabs */}
+        <div style={{display:"flex",background:T.card,borderRadius:12,padding:3,border:`1px solid ${T.border}`}}>
+          {[{id:"tasks",label:"📋 Hoy"},{id:"calendar",label:"📅 Calendario"},{id:"history",label:"📖 Historial"}].map(v=>(
+            <button key={v.id} onClick={()=>{setCalView(v.id);setSelDay(null);}}
+              style={{flex:1,background:calView===v.id?T.surface:"transparent",
+                border:calView===v.id?`1px solid ${T.border}`:"none",
+                borderRadius:10,padding:"8px 4px",fontSize:12,
+                color:calView===v.id?T.ink:T.muted,cursor:"pointer",
+                fontFamily:T.body,fontWeight:calView===v.id?500:300,transition:"all .2s"}}>
               {v.label}
             </button>
           ))}
         </div>
 
-        {/* CALENDAR VIEW */}
-        {calView === "calendar" && (
-          <div className="bt-rise" style={{background:T.card, border:`1px solid ${T.border}`, borderRadius:16, padding:16}}>
-            {/* Month nav */}
-            <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12}}>
-              <button onClick={()=>setCalMonth(new Date(year, month-1,1))}
-                style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.muted,padding:"4px 8px"}}>‹</button>
-              <div style={{fontFamily:T.display, fontSize:16, fontWeight:400, color:T.ink}}>
-                {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
+        {/* ═══ CALENDARIO ═══ */}
+        {calView==="calendar" && (
+          <div>
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <button onClick={()=>setCalMonth(new Date(year,month-1,1))}
+                  style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>‹</button>
+                <div style={{fontFamily:T.display,fontSize:17,fontWeight:400,color:T.ink,textTransform:"capitalize"}}>
+                  {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
+                </div>
+                <button onClick={()=>setCalMonth(new Date(year,month+1,1))}
+                  style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>›</button>
               </div>
-              <button onClick={()=>setCalMonth(new Date(year, month+1,1))}
-                style={{background:"none",border:"none",fontSize:18,cursor:"pointer",color:T.muted,padding:"4px 8px"}}>›</button>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
+                {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>(
+                  <div key={i} style={{textAlign:"center",fontSize:9,color:T.muted,fontWeight:500}}>{d}</div>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+                {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+                {Array.from({length:daysInMonth}).map((_,i)=>{
+                  const d=i+1;
+                  const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+                  const dt=tasksByDate[dateStr]||[];
+                  const isToday=dateStr===today;
+                  const isSel=selDay===dateStr;
+                  const hasDone=dt.some(t=>t.done);
+                  const hasPending=dt.some(t=>!t.done);
+                  return (
+                    <button key={d} onClick={()=>setSelDay(isSel?null:dateStr)}
+                      style={{borderRadius:10,padding:"5px 2px",textAlign:"center",minHeight:44,
+                        background:isSel?`${T.forest}20`:isToday?`${T.forest}12`:dt.length>0?"#fff":"transparent",
+                        border:isSel?`2px solid ${T.forest}`:isToday?`1.5px solid ${T.forest}44`:dt.length>0?`1px solid ${T.border}`:"1px solid transparent",
+                        cursor:"pointer",transition:"all .15s",
+                        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
+                      <span style={{fontSize:12,color:isSel||isToday?T.forest:T.ink,fontWeight:isSel||isToday?600:300}}>{d}</span>
+                      {dt.length>0 && (
+                        <div style={{display:"flex",gap:2}}>
+                          {hasDone && <div style={{width:5,height:5,borderRadius:"50%",background:T.forest}}/>}
+                          {hasPending && <div style={{width:5,height:5,borderRadius:"50%",background:T.amber}}/>}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{display:"flex",gap:16,marginTop:10,justifyContent:"center"}}>
+                <div style={{display:"flex",gap:5,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.forest}}/><span style={{fontSize:10,color:T.muted}}>Completada</span></div>
+                <div style={{display:"flex",gap:5,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.amber}}/><span style={{fontSize:10,color:T.muted}}>Pendiente</span></div>
+              </div>
             </div>
-            {/* Day headers */}
-            <div style={{display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, marginBottom:4}}>
-              {["D","L","M","M","J","V","S"].map((d,i)=>(
-                <div key={i} style={{textAlign:"center", fontSize:9, color:T.muted, padding:"4px 0", letterSpacing:.5}}>{d}</div>
-              ))}
-            </div>
-            {/* Days grid */}
-            <div style={{display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2}}>
-              {Array.from({length: firstDay}).map((_,i)=><div key={"e"+i}/>)}
-              {Array.from({length: daysInMonth}).map((_,i)=>{
-                const d = i+1;
-                const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-                const dayTasks = tasksByDate[dateStr] || [];
-                const isToday = dateStr === new Date().toISOString().slice(0,10);
-                const hasDone = dayTasks.some(t=>t.done);
-                const hasPending = dayTasks.some(t=>!t.done);
-                return (
-                  <div key={d} style={{
-                    borderRadius:8, padding:"6px 2px", textAlign:"center", minHeight:40,
-                    background: isToday ? `${T.forest}18` : "transparent",
-                    border: isToday ? `1.5px solid ${T.forest}44` : "1px solid transparent",
-                    position:"relative"
-                  }}>
-                    <div style={{fontSize:11, color: isToday ? T.forest : T.ink, fontWeight: isToday?500:300}}>{d}</div>
-                    {dayTasks.length > 0 && (
-                      <div style={{display:"flex", justifyContent:"center", gap:2, marginTop:2, flexWrap:"wrap"}}>
-                        {hasDone && <div style={{width:5,height:5,borderRadius:"50%",background:T.forest}}/>}
-                        {hasPending && <div style={{width:5,height:5,borderRadius:"50%",background:T.amber}}/>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{display:"flex", gap:12, marginTop:10, justifyContent:"center"}}>
-              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.forest}}/><span style={{fontSize:9,color:T.muted}}>Completada</span></div>
-              <div style={{display:"flex",gap:4,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.amber}}/><span style={{fontSize:9,color:T.muted}}>Pendiente</span></div>
-            </div>
+            {/* Day detail */}
+            {selDay && (
+              <div style={{background:T.card,border:`1.5px solid ${T.forest}33`,borderRadius:16,padding:14}}>
+                <div style={{fontFamily:T.display,fontSize:14,color:T.forest,marginBottom:10}}>
+                  📅 {new Date(selDay+"T12:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+                </div>
+                {(tasksByDate[selDay]||[]).length===0
+                  ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>Sin tareas este día</div>
+                  : <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {(tasksByDate[selDay]||[]).map(task=>(
+                        task.done
+                          ? <DoneRow key={task.id} task={task}/>
+                          : <TaskRow key={task.id} task={task}/>
+                      ))}
+                    </div>
+                }
+              </div>
+            )}
           </div>
         )}
 
-        {/* TASKS VIEW */}
-        {calView === "tasks" && (<>
+        {/* ═══ TAREAS DE HOY ═══ */}
+        {calView==="tasks" && (
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
 
-          {/* Pillar selector */}
-          <div style={{display:"flex", gap:6, overflowX:"auto", scrollbarWidth:"none", paddingBottom:2}}>
-            {myPillars.map(p=>(
-              <button key={p.id} onClick={()=>setSelPillar(p.id)}
-                style={{flexShrink:0, background:selPillar===p.id?p.colorDim:"transparent",
-                  border:`1.5px solid ${selPillar===p.id?p.color+"66":T.border}`,
-                  borderRadius:20, padding:"7px 14px", fontSize:13,
-                  color:selPillar===p.id?T.ink:T.muted, cursor:"pointer", fontFamily:T.body,
-                  display:"flex", alignItems:"center", gap:5, transition:"all .2s"}}>
-                <span>{p.icon}</span><span>{p.name}</span>
-              </button>
-            ))}
-          </div>
+            {/* Pillar selector */}
+            <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+              {myPillars.map(p=>(
+                <button key={p.id} onClick={()=>setSelPillar(p.id)}
+                  style={{flexShrink:0,background:selPillar===p.id?p.colorDim:"transparent",
+                    border:`1.5px solid ${selPillar===p.id?p.color+"66":T.border}`,
+                    borderRadius:20,padding:"7px 14px",fontSize:12,
+                    color:selPillar===p.id?T.ink:T.muted,cursor:"pointer",fontFamily:T.body,
+                    display:"flex",alignItems:"center",gap:5,transition:"all .2s"}}>
+                  <span>{p.icon}</span><span>{p.name}</span>
+                </button>
+              ))}
+            </div>
 
-          {/* Pillar progress bar */}
-          {pillar && pillarTasks.length > 0 && (
-            <div style={{background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:"12px 14px"}}>
-              <div style={{display:"flex", justifyContent:"space-between", marginBottom:6}}>
-                <span style={{fontSize:14, color:T.ink, fontFamily:T.display}}>{pillar.icon} {pillar.name}</span>
-                <span style={{fontSize:13, color:pillar.color, fontWeight:500}}>{doneTasks.length}/{pillarTasks.length} completadas</span>
-              </div>
-              <div style={{height:6, background:T.border, borderRadius:3, overflow:"hidden"}}>
-                <div style={{height:"100%", borderRadius:3, background:`linear-gradient(90deg,${pillar.color},${pillar.color}99)`,
-                  width:`${progress}%`, transition:"width .5s ease"}}/>
-              </div>
-              {progress === 100 && (
-                <div style={{fontSize:11, color:T.forest, marginTop:6, textAlign:"center", fontFamily:T.display, fontStyle:"italic"}}>
-                  🌸 ¡Completaste todas las tareas de este pilar!
+            {/* Progress bar */}
+            {pillarTasks.length>0 && (
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"12px 16px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontFamily:T.display,fontSize:14,color:T.ink}}>{pillar?.icon} {pillar?.name}</span>
+                  <span style={{fontSize:12,color:pillar?.color,fontWeight:500}}>{donePillar.length}/{pillarTasks.length} · {progress}%</span>
                 </div>
+                <div style={{height:7,background:T.border,borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:"100%",borderRadius:4,
+                    background:`linear-gradient(90deg,${pillar?.color},${pillar?.color}99)`,
+                    width:`${progress}%`,transition:"width .5s ease"}}/>
+                </div>
+                {progress===100 && <div style={{fontSize:11,color:T.forest,marginTop:8,textAlign:"center",fontFamily:T.display,fontStyle:"italic"}}>🌸 ¡Completaste todas las tareas de este pilar!</div>}
+              </div>
+            )}
+
+            {/* Tareas de hoy para este pilar */}
+            {todayPillar.length>0 && (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>HOY · {new Date().toLocaleDateString("es",{weekday:"long",day:"numeric",month:"short"})}</div>
+                {todayPillar.map(t=><TaskRow key={t.id} task={t}/>)}
+              </div>
+            )}
+
+            {/* Próximas tareas (no hoy) */}
+            {(() => {
+              const upcoming = pillarTasks.filter(t=>!t.done && t.dueDate && t.dueDate>today).sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,5);
+              if (!upcoming.length) return null;
+              return (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div style={{fontSize:10,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>PRÓXIMAS</div>
+                  {upcoming.map(t=><TaskRow key={t.id} task={t} showDate={true}/>)}
+                </div>
+              );
+            })()}
+
+            {/* Add task */}
+            {!showAdd ? (
+              <button onClick={()=>setShowAdd(true)}
+                style={{background:"transparent",border:`1.5px dashed ${pillar?.color||T.forest}55`,
+                  borderRadius:14,padding:"13px",fontSize:13,color:pillar?.color||T.forest,
+                  cursor:"pointer",fontFamily:T.body,
+                  display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                + Agregar tarea a {pillar?.name}
+              </button>
+            ) : (
+              <div style={{background:T.card,border:`1.5px solid ${pillar?.color||T.forest}44`,
+                borderRadius:16,padding:14,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{fontSize:11,color:T.muted,fontFamily:T.display,fontStyle:"italic"}}>Nueva tarea — {pillar?.icon} {pillar?.name}</div>
+                <input value={newText} onChange={e=>setNewText(e.target.value)}
+                  placeholder="¿Qué quieres hacer?" autoFocus
+                  onKeyDown={e=>e.key==="Enter"&&handleAdd()}
+                  style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                    padding:"10px 12px",fontSize:14,color:T.ink,fontFamily:T.body,outline:"none",width:"100%"}}/>
+                <div style={{display:"flex",gap:8}}>
+                  <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)}
+                    style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+                  <input type="time" value={newTime} onChange={e=>setNewTime(e.target.value)}
+                    style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+                </div>
+                {/* Repeat toggle */}
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  background:`${T.forest}08`,borderRadius:10,padding:"10px 12px"}}>
+                  <div style={{fontSize:13,color:T.ink}}>🔄 ¿Se repite?</div>
+                  <button onClick={()=>setNewRepeat(p=>!p)}
+                    style={{width:44,height:24,borderRadius:12,border:"none",cursor:"pointer",
+                      background:newRepeat?T.forest:T.border,transition:"all .2s",position:"relative"}}>
+                    <div style={{width:18,height:18,borderRadius:"50%",background:"#fff",
+                      position:"absolute",top:3,transition:"all .2s",left:newRepeat?22:4,
+                      boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/>
+                  </button>
+                </div>
+                {newRepeat && (
+                  <div style={{display:"flex",alignItems:"center",gap:8,paddingLeft:4}}>
+                    <div style={{fontSize:12,color:T.muted}}>Durante:</div>
+                    <button onClick={()=>setNewDurVal(p=>Math.max(1,p-1))}
+                      style={{width:26,height:26,borderRadius:7,background:T.surface,border:`1px solid ${T.border}`,fontSize:15,cursor:"pointer",color:T.ink}}>−</button>
+                    <div style={{fontFamily:T.mono,fontSize:15,color:T.forest,fontWeight:"bold",minWidth:20,textAlign:"center"}}>{newDurVal}</div>
+                    <button onClick={()=>setNewDurVal(p=>p+1)}
+                      style={{width:26,height:26,borderRadius:7,background:T.surface,border:`1px solid ${T.border}`,fontSize:15,cursor:"pointer",color:T.ink}}>+</button>
+                    {["semanas","dias"].map(u=>(
+                      <button key={u} onClick={()=>setNewDurUnit(u)}
+                        style={{padding:"4px 10px",borderRadius:8,border:`1px solid ${newDurUnit===u?T.forest+"66":T.border}`,
+                          background:newDurUnit===u?`${T.forest}12`:"transparent",
+                          fontSize:11,color:newDurUnit===u?T.forest:T.muted,cursor:"pointer",fontFamily:T.body}}>
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={handleAdd}
+                    style={{flex:1,background:`linear-gradient(135deg,${pillar?.color||T.forest},${pillar?.color||T.forest}bb)`,
+                      border:"none",borderRadius:10,padding:"11px",fontSize:13,color:"#fff",
+                      cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+                    Guardar ✓
+                  </button>
+                  <button onClick={()=>{setShowAdd(false);setNewText("");setNewDate("");setNewTime("");setNewRepeat(false);}}
+                    style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+                      padding:"11px 16px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Notif banner */}
+            {!notifGranted && "Notification" in window && (
+              <button onClick={requestNotifPermission}
+                style={{background:`${T.amber}12`,border:`1px solid ${T.amber}33`,borderRadius:12,
+                  padding:"10px 14px",fontSize:13,color:T.amber,cursor:"pointer",fontFamily:T.body,
+                  textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+                <span>🔔</span>
+                <div><div style={{fontWeight:500}}>Activar recordatorios</div><div style={{fontSize:11,opacity:.7}}>Te avisamos a la hora de cada tarea</div></div>
+              </button>
+            )}
+
+            {/* Empty */}
+            {pillarTasks.length===0 && (
+              <div style={{textAlign:"center",padding:"40px 16px",color:T.muted}}>
+                <div style={{fontSize:40,marginBottom:10}}>🌱</div>
+                <div style={{fontFamily:T.display,fontSize:17,fontStyle:"italic",marginBottom:4,color:T.ink}}>Sin tareas aún</div>
+                <div style={{fontSize:13,fontWeight:300}}>Agrega tu primera actividad para {pillar?.name}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ HISTORIAL ═══ */}
+        {calView==="history" && (
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:13,color:T.ink,fontFamily:T.display,fontStyle:"italic"}}>
+                {history.length} tareas completadas
+              </div>
+              {streakDays>0 && (
+                <div style={{fontSize:12,color:T.amber,fontWeight:500}}>🔥 {streakDays} días seguidos</div>
               )}
             </div>
-          )}
+            {history.length===0
+              ? <div style={{textAlign:"center",padding:"40px 16px",color:T.muted}}>
+                  <div style={{fontSize:36,marginBottom:8}}>📖</div>
+                  <div style={{fontFamily:T.display,fontSize:16,fontStyle:"italic",color:T.ink}}>Tu historial está vacío</div>
+                  <div style={{fontSize:12,marginTop:4}}>Completa tareas para verlas aquí</div>
+                </div>
+              : history.map(t=><DoneRow key={t.id+t.doneAt} task={t}/>)
+            }
+          </div>
+        )}
 
-          {/* Add task button */}
-          {!showAdd ? (
-            <button onClick={()=>setShowAdd(true)} className="bt-btn"
-              style={{background:"transparent", border:`1.5px dashed ${pillar?.color||T.forest}55`,
-                borderRadius:14, padding:"12px", fontSize:15, color:pillar?.color||T.forest,
-                cursor:"pointer", fontFamily:T.body, display:"flex", alignItems:"center", justifyContent:"center", gap:8}}>
-              + Agregar tarea a {pillar?.name}
-            </button>
-          ) : (
-            <div className="bt-rise" style={{background:T.card, border:`1.5px solid ${pillar?.color||T.forest}44`, borderRadius:16, padding:14, display:"flex", flexDirection:"column", gap:10}}>
-              <div style={{fontSize:12, color:T.muted, fontFamily:T.display, fontStyle:"italic"}}>Nueva tarea — {pillar?.name}</div>
-              <input value={newText} onChange={e=>setNewText(e.target.value)}
-                placeholder="¿Qué quieres hacer?"
-                style={{background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 12px",
-                  fontSize:15, color:T.ink, fontFamily:T.body, outline:"none", width:"100%"}}
-                onKeyDown={e=>e.key==="Enter"&&handleAdd()}
-              />
-              <div style={{display:"flex", gap:8}}>
-                <input type="date" value={newDate} onChange={e=>setNewDate(e.target.value)}
-                  style={{flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:"8px 10px",
-                    fontSize:12, color:T.ink, fontFamily:T.body, outline:"none"}}/>
-                <input type="time" value={newTime} onChange={e=>setNewTime(e.target.value)}
-                  style={{flex:1, background:T.surface, border:`1px solid ${T.border}`, borderRadius:10, padding:"8px 10px",
-                    fontSize:12, color:T.ink, fontFamily:T.body, outline:"none"}}/>
-              </div>
-              <div style={{display:"flex", gap:8}}>
-                <button onClick={handleAdd} className="bt-btn"
-                  style={{flex:1, background:`linear-gradient(135deg,${pillar?.color||T.forest},${pillar?.color||T.forest}cc)`,
-                    border:"none", borderRadius:10, padding:"10px", fontSize:13, color:"#fff",
-                    cursor:"pointer", fontFamily:T.body, fontWeight:500}}>
-                  Guardar ✓
-                </button>
-                <button onClick={()=>{setShowAdd(false);setNewText("");setNewDate("");setNewTime("");}}
-                  style={{background:"transparent", border:`1px solid ${T.border}`, borderRadius:10, padding:"10px 14px",
-                    fontSize:13, color:T.muted, cursor:"pointer", fontFamily:T.body}}>
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Notification permission */}
-          {!notifGranted && "Notification" in window && (
-            <button onClick={requestNotifPermission}
-              style={{background:`${T.amber}12`, border:`1px solid ${T.amber}44`, borderRadius:12, padding:"10px 14px",
-                fontSize:14, color:T.amber, cursor:"pointer", fontFamily:T.body, textAlign:"left", display:"flex", alignItems:"center", gap:8}}>
-              🔔 Activar recordatorios para no olvidar tus tareas
-            </button>
-          )}
-
-          {/* Pending tasks */}
-          {pendingTasks.length > 0 && (
-            <div style={{display:"flex", flexDirection:"column", gap:8}}>
-              <div style={{fontSize:11, color:T.muted, letterSpacing:2, textTransform:"uppercase"}}>Pendientes</div>
-              {pendingTasks.map((task,i)=>{
-                const tp = ALL_PILLARS.find(p=>p.id===task.pillarId);
-                return (
-                  <div key={task.id} className="bt-rise" style={{
-                    background:T.card, border:`1px solid ${T.border}`, borderRadius:14,
-                    padding:"12px 14px", display:"flex", alignItems:"flex-start", gap:12,
-                    animation:`bt-rise .3s ease ${i*0.05}s both`
-                  }}>
-                    <button onClick={()=>toggleTask(task.id)}
-                      style={{width:22,height:22,borderRadius:6,flexShrink:0,marginTop:1,
-                        background:"transparent", border:`2px solid ${tp?.color||T.forest}66`,
-                        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-                        transition:"all .2s"}}>
-                    </button>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:15, color:T.ink, fontWeight:300, lineHeight:1.6}}>{task.text}</div>
-                      {(task.dueDate || task.time) && (
-                        <div style={{fontSize:12, color:T.muted, marginTop:4, display:"flex", gap:8}}>
-                          {task.dueDate && <span>📅 {new Date(task.dueDate+"T12:00").toLocaleDateString("es",{day:"numeric",month:"short"})}</span>}
-                          {task.time && <span>🕐 {task.time}</span>}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
-                      <div style={{width:8,height:8,borderRadius:"50%",background:tp?.color||T.forest,flexShrink:0}}/>
-                      <button onClick={()=>deleteTask(task.id)}
-                        style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"0 2px",lineHeight:1}}>×</button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Done tasks */}
-          {doneTasks.length > 0 && (
-            <div style={{display:"flex", flexDirection:"column", gap:8}}>
-              <div style={{fontSize:11, color:T.muted, letterSpacing:2, textTransform:"uppercase"}}>Completadas 🌿</div>
-              {doneTasks.map((task,i)=>{
-                const tp = ALL_PILLARS.find(p=>p.id===task.pillarId);
-                return (
-                  <div key={task.id} style={{
-                    background:`${T.forest}06`, border:`1px solid ${T.forest}22`, borderRadius:14,
-                    padding:"10px 14px", display:"flex", alignItems:"center", gap:12, opacity:.7
-                  }}>
-                    <button onClick={()=>toggleTask(task.id)}
-                      style={{width:22,height:22,borderRadius:6,flexShrink:0,
-                        background:tp?.color||T.forest, border:"none",
-                        cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-                        color:"#fff", fontSize:13, fontWeight:"bold"}}>✓</button>
-                    <div style={{flex:1, textDecoration:"line-through", fontSize:15, color:T.muted, fontWeight:300}}>{task.text}</div>
-                    <button onClick={()=>deleteTask(task.id)}
-                      style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:14,padding:"0 2px"}}>×</button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Empty state */}
-          {pillarTasks.length === 0 && (
-            <div style={{textAlign:"center", padding:"32px 16px", color:T.muted}}>
-              <div style={{fontSize:36, marginBottom:8}}>🌱</div>
-              <div style={{fontFamily:T.display, fontSize:15, fontStyle:"italic", marginBottom:4}}>Sin tareas aún</div>
-              <div style={{fontSize:14, fontWeight:300}}>Agrega tu primera actividad para {pillar?.name}</div>
-            </div>
-          )}
-
-        </>)}
       </div>
     );
   };
@@ -3283,7 +3975,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
           display: tab==="aria" ? "flex" : "none",
           flexDirection:"column",
         }}>
-          <AriaChat key="aria-chat" systemPrompt={ariaSystemPrompt} initialMsg={ariaInitialMsg} myPillars={myPillars}/>
+          <AriaChat key="aria-chat" systemPrompt={ariaSystemPrompt} initialMsg={ariaInitialMsg} myPillars={myPillars} onAddTasks={tasks => setTasks(p => [...p, ...tasks])}/>
         </div>
         <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="detail"?"block":"none"}}><DetailTab/></div>
         <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="community"?"block":"none"}}><CommunityTab/></div>

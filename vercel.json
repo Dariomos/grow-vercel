@@ -6,4 +6,4 @@
     { "src": "/icons/(.*)", "dest": "/icons/$1" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
-}  
+}

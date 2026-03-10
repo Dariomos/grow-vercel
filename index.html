@@ -25,7 +25,6 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
 @keyframes bt-rise2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes bt-bloom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @keyframes bt-breathe{0%,100%{box-shadow:0 0 0 0 #3D6B4F22}50%{box-shadow:0 0 0 10px #3D6B4F00}}
-@keyframes bt-fadein{from{opacity:0}to{opacity:1}}
 @keyframes bt-leaf{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}
 @keyframes bt-sprout{from{transform-origin:bottom center;transform:scaleY(0);opacity:0}to{transform-origin:bottom center;transform:scaleY(1);opacity:1}}
 @keyframes bt-unfurl{from{transform-origin:left bottom;transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}
@@ -57,8 +56,24 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react">
 const { useState, useRef, useEffect } = React;
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e.message }; }
+  render() {
+    if (this.state.error) return (
+      <div style={{padding:32,fontFamily:"DM Sans,sans-serif",color:"#2C2416",background:"#F7F3ED",minHeight:"100vh"}}>
+        <div style={{fontSize:24,marginBottom:8}}>🌱</div>
+        <div style={{fontSize:16,fontWeight:500,marginBottom:8}}>Grow · Error</div>
+        <div style={{fontSize:12,color:"#8C7B68",background:"#fff",padding:12,borderRadius:8,wordBreak:"break-all"}}>{this.state.error}</div>
+        <button onClick={()=>window.location.reload()} style={{marginTop:16,padding:"10px 20px",background:"#3D6B4F",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontSize:14}}>Recargar</button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    DESIGN SYSTEM — Cálido · Orgánico · Naturaleza · Luz · Tierra
@@ -1826,7 +1841,7 @@ function CalendarCard({ event, pillar, onAddTasks }) {
   const [ev, setEv]         = useState({ ...event, startDate: today });
   const [editing, setEditing] = useState(false);
   const [saved,   setSaved]   = useState(false);
-  const [notifOk, setNotifOk] = useState(Notification?.permission === "granted");
+  const [notifOk, setNotifOk] = useState(typeof Notification !== "undefined" && Notification.permission === "granted");
   // Recurrence options
   const [repeat,  setRepeat]  = useState(true);
   const [durUnit, setDurUnit] = useState("semanas"); // semanas | dias
@@ -1846,8 +1861,13 @@ function CalendarCard({ event, pillar, onAddTasks }) {
 
   // Keep endDate in sync when duration changes
   useEffect(() => {
-    setEv(p => ({ ...p, endDate: computeEnd(p.startDate, durVal, durUnit) }));
-  }, [durVal, durUnit]);
+    setEv(p => {
+      const d = new Date((p.startDate||today)+"T12:00");
+      if (durUnit === "semanas") d.setDate(d.getDate() + durVal*7 - 1);
+      else d.setDate(d.getDate() + durVal - 1);
+      return { ...p, endDate: d.toISOString().slice(0,10) };
+    });
+  }, [durVal, durUnit]); // eslint-disable-line
 
   function toggleDia(d) {
     setEv(p => ({ ...p, dias: p.dias.includes(d) ? p.dias.filter(x=>x!==d) : [...p.dias, d] }));
@@ -2829,7 +2849,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
   const [tasks, setTasks]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("grow_tasks") || "[]"); } catch { return []; }
   });
-  const [notifGranted, setNotifGranted] = useState(Notification?.permission === "granted");
+  const [notifGranted, setNotifGranted] = useState(typeof Notification !== "undefined" && Notification.permission === "granted");
 
   // Persist tasks
   useEffect(() => {
@@ -4050,7 +4070,9 @@ function App() {
   );
 }
 
-    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <ErrorBoundary><App/></ErrorBoundary>
+    );
   </script>
   <script>
     document.addEventListener("touchmove",function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});

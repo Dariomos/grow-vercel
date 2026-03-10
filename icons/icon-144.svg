@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="144" height="144">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#3D6B4F"/>
+  <!-- Stem -->
+  <rect x="248" y="280" width="16" height="140" rx="8" fill="#F7F3ED" opacity="0.9"/>
+  <!-- Left leaf -->
+  <ellipse cx="200" cy="240" rx="60" ry="30" fill="#F7F3ED" opacity="0.85" transform="rotate(-35 200 240)"/>
+  <!-- Right leaf -->
+  <ellipse cx="312" cy="200" rx="60" ry="30" fill="#F7F3ED" opacity="0.85" transform="rotate(35 312 200)"/>
+  <!-- Top leaf -->
+  <ellipse cx="256" cy="160" rx="45" ry="22" fill="#F7F3ED" opacity="0.95" transform="rotate(-10 256 160)"/>
+  <!-- Sparkle -->
+  <circle cx="380" cy="120" r="8" fill="#C8872A" opacity="0.8"/>
+  <circle cx="140" cy="150" r="5" fill="#C8872A" opacity="0.6"/>
+</svg>

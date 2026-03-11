@@ -57,6 +57,65 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script type="text/babel" data-presets="react">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Grow"/>
+  <meta name="theme-color" content="#3D6B4F"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
+  <title>Grow · Building Together</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&family=Courier+Prime&display=swap" rel="stylesheet"/>
+  <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#EDE8E0}
+#root{height:100%;display:flex;flex-direction:column;overflow:hidden}
+.grow-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#D4C4A8;border-radius:3px}
+.bt-grain::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");opacity:0.5}
+@keyframes bt-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bt-rise2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bt-bloom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@keyframes bt-breathe{0%,100%{box-shadow:0 0 0 0 #3D6B4F22}50%{box-shadow:0 0 0 10px #3D6B4F00}}
+@keyframes bt-leaf{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}
+@keyframes bt-sprout{from{transform-origin:bottom center;transform:scaleY(0);opacity:0}to{transform-origin:bottom center;transform:scaleY(1);opacity:1}}
+@keyframes bt-unfurl{from{transform-origin:left bottom;transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-unfurl-r{from{transform-origin:right bottom;transform:scale(0) rotate(20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-blossom{0%{transform:scale(0) rotate(-15deg);opacity:0}70%{transform:scale(1.15) rotate(2deg)}100%{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1deg)}}
+@keyframes splash-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.bt-rise{animation:bt-rise .55s cubic-bezier(.22,1,.36,1) both}.bt-rise2{animation:bt-rise2 .4s ease both}.bt-bloom{animation:bt-bloom .45s cubic-bezier(.22,1,.36,1) both}
+.bt-plant-stem{animation:bt-sprout .8s cubic-bezier(.22,1,.36,1) both}.bt-plant-leaf1{animation:bt-unfurl .6s cubic-bezier(.22,1,.36,1) .5s both}.bt-plant-leaf2{animation:bt-unfurl-r .6s cubic-bezier(.22,1,.36,1) .7s both}.bt-plant-leaf3{animation:bt-unfurl .5s cubic-bezier(.22,1,.36,1) .9s both}.bt-plant-leaf4{animation:bt-unfurl-r .5s cubic-bezier(.22,1,.36,1) 1.0s both}.bt-plant-flower{animation:bt-blossom .7s cubic-bezier(.22,1,.36,1) 1.2s both}.bt-plant-float{animation:bt-float 3.5s ease-in-out infinite}
+.bt-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px #D4C4A888;transition:all .25s ease}.bt-btn{transition:all .2s ease}.bt-btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+#splash{position:fixed;inset:0;background:#F7F3ED;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;transition:opacity .6s ease}
+#splash.fade{opacity:0;pointer-events:none}
+#splash-icon{width:88px;height:88px;border-radius:28px;background:linear-gradient(145deg,#3D6B4F22,#C8872A22);border:1.5px solid #E8DDD0;display:flex;align-items:center;justify-content:center;font-size:42px;animation:splash-breathe 3s ease infinite}
+#splash-title{font-family:"Cormorant Garamond",Georgia,serif;font-size:52px;font-weight:300;letter-spacing:-2px;color:#3D6B4F;line-height:1}
+#splash-sub{font-family:"DM Sans",sans-serif;font-size:12px;color:#8C7B68;font-weight:300;letter-spacing:2px;text-transform:uppercase}
+#install-banner{position:fixed;bottom:0;left:0;right:0;background:#3D6B4F;color:#fff;padding:14px 20px 24px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:1000;border-radius:20px 20px 0 0;font-family:"DM Sans",sans-serif}
+#install-banner.show{display:flex;animation:slideUp .4s ease}
+#install-btn{background:#F7F3ED;color:#3D6B4F;border:none;border-radius:12px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
+#dismiss-btn{background:transparent;color:#F7F3ED88;border:none;font-size:22px;cursor:pointer;padding:4px;flex-shrink:0}</style>
+</head>
+<body>
+  <div id="splash"><div id="splash-icon">🌱</div><div id="splash-title">Grow</div><div id="splash-sub">by Building Together</div></div>
+  <div id="install-banner">
+    <div style="flex:1"><div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar Grow</div><div style="font-size:12px;opacity:.8">Añade a tu pantalla de inicio</div></div>
+    <button id="install-btn">Instalar</button><button id="dismiss-btn">✕</button>
+  </div>
+  <div id="root"></div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-presets="react">
 const { useState, useRef, useEffect } = React;
 
 class ErrorBoundary extends React.Component {
@@ -2610,6 +2669,298 @@ Reglas estrictas:
 /* ═══════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════ */
+/* ── PILLAR EDIT MODAL ───────────────────────────────── */
+function PillarEditModal({ activePillarIds, onSave, onClose }) {
+  const [selected, setSelected] = useState(new Set(activePillarIds));
+
+  function toggle(id) {
+    if (id === "fundamentos") return; // always locked
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <div style={{
+      position:"fixed",inset:0,zIndex:999,
+      background:"rgba(44,36,22,.55)",backdropFilter:"blur(4px)",
+      display:"flex",alignItems:"flex-end",justifyContent:"center",
+    }} onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div style={{
+        width:"100%",maxWidth:430,
+        background:T.surface,borderRadius:"24px 24px 0 0",
+        padding:"0 0 40px",
+        maxHeight:"88vh",display:"flex",flexDirection:"column",
+        animation:"slideUp .35s cubic-bezier(.22,1,.36,1)",
+      }}>
+        {/* Handle */}
+        <div style={{display:"flex",justifyContent:"center",paddingTop:12,paddingBottom:4}}>
+          <div style={{width:36,height:4,borderRadius:2,background:T.border}}/>
+        </div>
+
+        {/* Header */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 20px 14px"}}>
+          <div>
+            <div style={{fontFamily:T.display,fontSize:20,fontWeight:400,color:T.ink}}>Mis Pilares</div>
+            <div style={{fontSize:11,color:T.muted,marginTop:2}}>{selected.size} seleccionado{selected.size!==1?"s":""} · Fundamentos siempre activo</div>
+          </div>
+          <button onClick={onClose}
+            style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+              width:32,height:32,fontSize:16,cursor:"pointer",color:T.muted,
+              display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+        </div>
+
+        {/* Pillar list */}
+        <div style={{flex:1,overflowY:"auto",padding:"0 16px",display:"flex",flexDirection:"column",gap:8}}>
+          {ALL_PILLARS.map(p=>{
+            const on = selected.has(p.id);
+            const locked = p.id === "fundamentos";
+            return (
+              <div key={p.id} onClick={()=>toggle(p.id)}
+                style={{
+                  background: on ? `${p.color}14` : T.card,
+                  border: `1.5px solid ${on ? p.color+"55" : T.border}`,
+                  borderRadius:14, padding:"12px 14px",
+                  cursor: locked ? "default" : "pointer",
+                  display:"flex", alignItems:"center", gap:12,
+                  transition:"all .2s",
+                  opacity: locked ? 1 : 1,
+                }}>
+                {/* Icon */}
+                <div style={{
+                  width:42,height:42,borderRadius:12,flexShrink:0,
+                  background:`linear-gradient(145deg,${p.color}22,${p.color}08)`,
+                  border:`1px solid ${p.color}33`,
+                  display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,
+                }}>{p.icon}</div>
+
+                {/* Info */}
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2}}>
+                    <span style={{fontFamily:T.display,fontSize:14,fontWeight:500,color:on?T.ink:T.muted}}>{p.name}</span>
+                    {locked && <span style={{fontSize:9,color:p.color,background:`${p.color}18`,padding:"2px 7px",borderRadius:8,letterSpacing:1,textTransform:"uppercase",fontFamily:T.body}}>Esencial</span>}
+                  </div>
+                  <div style={{fontSize:11,color:T.muted,fontStyle:"italic",fontFamily:T.display,lineHeight:1.4}}>{p.quote}</div>
+                </div>
+
+                {/* Checkbox */}
+                <div style={{
+                  width:24,height:24,borderRadius:7,flexShrink:0,
+                  background: on ? p.color : "transparent",
+                  border: `2px solid ${on ? p.color : T.border}`,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  transition:"all .2s",
+                }}>
+                  {on && <span style={{color:"#fff",fontSize:13,fontWeight:"bold"}}>✓</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Save button */}
+        <div style={{padding:"16px 16px 0"}}>
+          <button onClick={()=>onSave([...selected])}
+            style={{
+              width:"100%",
+              background:`linear-gradient(135deg,${T.forest},${T.moss})`,
+              border:"none",borderRadius:14,padding:"15px",
+              fontSize:14,color:"#fff",fontFamily:T.body,fontWeight:500,
+              cursor:"pointer",boxShadow:`0 6px 22px ${T.forest}33`,
+            }}>
+            Guardar cambios →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── PROPÓSITOS CARD ─────────────────────────────────── */
+function PropositosCard({ propositos, setPropositos }) {
+  const [editing, setEditing]   = useState(null); // index being edited
+  const [draft,   setDraft]     = useState("");
+  const [adding,  setAdding]    = useState(false);
+  const [newText, setNewText]   = useState("");
+
+  const filled = (propositos||[]).filter(p=>p&&p.trim());
+
+  function startEdit(i) {
+    setEditing(i);
+    setDraft(propositos[i]||"");
+    setAdding(false);
+  }
+
+  function saveEdit(i) {
+    const next = [...(propositos||[])];
+    next[i] = draft.trim();
+    setPropositos(next.filter(Boolean));
+    setEditing(null);
+  }
+
+  function deleteProposito(i) {
+    const next = (propositos||[]).filter((_,idx)=>idx!==i);
+    setPropositos(next);
+    setEditing(null);
+  }
+
+  function saveNew() {
+    if (!newText.trim()) { setAdding(false); return; }
+    setPropositos([...(propositos||[]), newText.trim()]);
+    setNewText("");
+    setAdding(false);
+  }
+
+  if (filled.length === 0 && !adding) return (
+    <button onClick={()=>setAdding(true)}
+      style={{background:"transparent",border:`1.5px dashed ${T.border}`,borderRadius:14,
+        padding:"12px 16px",cursor:"pointer",fontFamily:T.body,width:"100%",
+        display:"flex",alignItems:"center",gap:8,color:T.muted,fontSize:12}}>
+      <span style={{fontSize:16}}>🧭</span>
+      <span>Añade tu propósito de vida →</span>
+    </button>
+  );
+
+  return (
+    <div className="bt-rise" style={{
+      background:`linear-gradient(135deg,${T.forest}08,${T.amber}05,${T.card})`,
+      border:`1px solid ${T.forest}22`,borderRadius:16,padding:"16px 18px",
+      animationDelay:".02s",
+    }}>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:7}}>
+          <span style={{fontSize:14}}>🧭</span>
+          <span style={{fontFamily:T.display,fontSize:13,fontWeight:500,color:T.forest,letterSpacing:.5}}>
+            Mi Propósito
+          </span>
+        </div>
+        {!adding && (
+          <button onClick={()=>{ setAdding(true); setEditing(null); }}
+            style={{background:`${T.forest}12`,border:`1px solid ${T.forest}33`,
+              borderRadius:8,padding:"4px 10px",fontSize:11,color:T.forest,
+              cursor:"pointer",fontFamily:T.body,display:"flex",alignItems:"center",gap:4}}>
+            + añadir
+          </button>
+        )}
+      </div>
+
+      {/* Propósitos list */}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filled.map((p,i)=>(
+          <div key={i}>
+            {editing === i ? (
+              /* Edit mode */
+              <div style={{background:T.surface,border:`1.5px solid ${T.forest}44`,
+                borderRadius:11,padding:"10px 12px"}}>
+                <textarea
+                  value={draft}
+                  onChange={e=>setDraft(e.target.value)}
+                  rows={2}
+                  autoFocus
+                  style={{width:"100%",background:"transparent",border:"none",outline:"none",
+                    fontFamily:T.display,fontSize:13,color:T.ink,lineHeight:1.7,
+                    resize:"none",fontWeight:300}}
+                />
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
+                  <button onClick={()=>deleteProposito(i)}
+                    style={{background:"transparent",border:`1px solid ${T.blush}66`,
+                      borderRadius:7,padding:"5px 10px",fontSize:11,color:T.blush,
+                      cursor:"pointer",fontFamily:T.body}}>
+                    🗑 Eliminar
+                  </button>
+                  <div style={{display:"flex",gap:7}}>
+                    <button onClick={()=>setEditing(null)}
+                      style={{background:"transparent",border:`1px solid ${T.border}`,
+                        borderRadius:7,padding:"5px 10px",fontSize:11,color:T.muted,
+                        cursor:"pointer",fontFamily:T.body}}>
+                      Cancelar
+                    </button>
+                    <button onClick={()=>saveEdit(i)}
+                      style={{background:T.forest,border:"none",
+                        borderRadius:7,padding:"5px 12px",fontSize:11,color:"#fff",
+                        cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* View mode */
+              <div
+                onClick={()=>startEdit(i)}
+                style={{
+                  display:"flex",alignItems:"flex-start",gap:10,
+                  padding:"10px 12px",borderRadius:11,cursor:"pointer",
+                  background: i===0 ? `${T.forest}06` : "transparent",
+                  border:`1px solid ${i===0?T.forest+"22":T.border}`,
+                  transition:"all .15s",
+                }}>
+                {/* Number badge */}
+                <div style={{
+                  width:20,height:20,borderRadius:"50%",flexShrink:0,
+                  background:i===0?T.forest:`${T.muted}22`,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:10,color:i===0?"#fff":T.muted,fontWeight:"bold",marginTop:1,
+                }}>
+                  {i+1}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{
+                    fontFamily:T.display,fontSize:13,fontWeight:i===0?400:300,
+                    color:i===0?T.ink:T.muted,lineHeight:1.65,fontStyle:"italic",
+                  }}>
+                    "{p}"
+                  </div>
+                </div>
+                <span style={{fontSize:10,color:T.muted,flexShrink:0,marginTop:2}}>✏️</span>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Add new */}
+        {adding && (
+          <div style={{background:T.surface,border:`1.5px solid ${T.forest}44`,
+            borderRadius:11,padding:"10px 12px"}}>
+            <div style={{fontSize:10,color:T.forest,marginBottom:6,fontFamily:T.display,fontStyle:"italic"}}>
+              Propósito {filled.length+1}
+            </div>
+            <textarea
+              value={newText}
+              onChange={e=>setNewText(e.target.value)}
+              placeholder="¿Para qué haces todo esto? Escríbelo con tus palabras..."
+              rows={2}
+              autoFocus
+              style={{width:"100%",background:"transparent",border:"none",outline:"none",
+                fontFamily:T.display,fontSize:13,color:T.ink,lineHeight:1.7,
+                resize:"none",fontWeight:300,fontStyle:newText?"normal":"italic"}}
+            />
+            <div style={{display:"flex",justifyContent:"flex-end",gap:7,marginTop:8}}>
+              <button onClick={()=>{ setAdding(false); setNewText(""); }}
+                style={{background:"transparent",border:`1px solid ${T.border}`,
+                  borderRadius:7,padding:"5px 10px",fontSize:11,color:T.muted,
+                  cursor:"pointer",fontFamily:T.body}}>
+                Cancelar
+              </button>
+              <button onClick={saveNew}
+                disabled={!newText.trim()}
+                style={{background:newText.trim()?T.forest:T.border,border:"none",
+                  borderRadius:7,padding:"5px 12px",fontSize:11,color:"#fff",
+                  cursor:newText.trim()?"pointer":"default",fontFamily:T.body,fontWeight:500,
+                  transition:"background .2s"}}>
+                Guardar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── HABITS PANEL COMPONENT ─────────────────────────── */
 function HabitsPanel({ pillar: p, tasks, setTasks }) {
   const [selHabits, setSelHabits] = useState(new Set());
@@ -2968,12 +3319,19 @@ function DayDetail({ selDay, calTasksByDate }) {
   );
 }
 
-function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles, propositos=[], initialTasks=[], session=null, onSignOut=null }) {
+function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles, propositos=[], onPropositosChange=null, initialTasks=[], session=null, onSignOut=null }) {
   const [tab, setTab]         = useState("home");
   const [detail, setDetail]   = useState(null);
   const [demoProgress, setDemoProgress] = useState(0);
+  const [showPillarEdit, setShowPillarEdit] = useState(false);
   // Tasks state
   const [tasks, setTasks]     = useState(initialTasks);
+  // Local propositos state — syncs up to App via callback
+  const [localPropositos, setLocalPropositos] = useState(propositos);
+  function handlePropositosChange(val) {
+    setLocalPropositos(val);
+    if (onPropositosChange) onPropositosChange(val);
+  }
   const [notifGranted, setNotifGranted] = useState(typeof Notification !== "undefined" && Notification.permission === "granted");
 
   // Persist tasks
@@ -3056,7 +3414,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
   const HomeTab = ()=>(
     <div style={{padding:"18px 16px 100px 16px",display:"flex",flexDirection:"column",gap:16}}>
 
-      {/* Greeting + Living Plant */}
+      {/* Greeting */}
       <div className="bt-rise" style={{paddingBottom:4}}>
         <div style={{fontFamily:T.display,fontSize:26,fontWeight:300,color:T.ink,lineHeight:1.2}}>
           {userName ? `Hola, ${userName}` : "Hola"} <span style={{fontSize:18,display:"inline-block",animation:"bt-leaf 4s ease-in-out infinite"}}>🌿</span>
@@ -3065,6 +3423,9 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
           Tu jardín crece contigo. Un paso a la vez.
         </div>
       </div>
+
+      {/* Propósitos */}
+      <PropositosCard propositos={localPropositos} setPropositos={handlePropositosChange}/>
 
       {/* ── Living Plant Hero ── */}
       <div className="bt-rise" style={{
@@ -3203,7 +3564,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
       {/* Pillars label */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span style={{fontFamily:T.display,fontSize:13,color:T.muted,fontStyle:"italic"}}>Mis pilares ({myPillars.length})</span>
-        <span style={{fontSize:11,color:T.forest,cursor:"pointer",fontWeight:300}}>editar →</span>
+        <span onClick={()=>setShowPillarEdit(true)} style={{fontSize:11,color:T.forest,cursor:"pointer",fontWeight:300,padding:"4px 8px",borderRadius:8,background:`${T.forest}10`,border:`1px solid ${T.forest}22`}}>editar →</span>
       </div>
 
       {/* Dynamic pillars */}
@@ -3242,6 +3603,21 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
           </div>
         ))}
       </div>
+
+      {/* Pillar Edit Modal */}
+      {showPillarEdit && (
+        <PillarEditModal
+          activePillarIds={activePillarIds}
+          onSave={async (newIds)=>{
+            setShowPillarEdit(false);
+            if (session?.access_token) {
+              try { await supa.upsertProfile(session.access_token, session.user.id, { active_pillars: newIds }); } catch(e) {}
+            }
+            window.location.reload();
+          }}
+          onClose={()=>setShowPillarEdit(false)}
+        />
+      )}
 
       {/* ARIA nudge */}
       <div className="bt-card" onClick={()=>setTab("aria")}
@@ -5152,6 +5528,12 @@ function App() {
       <MainApp
         activePillarIds={pillars} userName={name} birthdate={birthdate}
         gender={gender} pillarProfiles={profiles} propositos={propositos}
+        onPropositosChange={async (vals)=>{
+          setPropositos(vals);
+          if (session?.access_token) {
+            try { await supa.upsertProfile(session.access_token, session.user.id, { propositos: vals }); } catch(e) {}
+          }
+        }}
         initialTasks={initTasks}
         session={session}
         onSignOut={handleSignOut}
@@ -5160,6 +5542,23 @@ function App() {
   );
 }
 
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <ErrorBoundary><App/></ErrorBoundary>
+    );
+  </script>
+  <script>
+    document.addEventListener("touchmove",function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});
+    if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+    window.addEventListener("load",()=>setTimeout(()=>{const s=document.getElementById("splash");if(s){s.classList.add("fade");setTimeout(()=>s.remove(),700)}},2000));
+    let dp=null;
+    window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();dp=e;setTimeout(()=>document.getElementById("install-banner")?.classList.add("show"),3500)});
+    document.getElementById("install-btn")?.addEventListener("click",async()=>{if(!dp)return;dp.prompt();await dp.userChoice;dp=null;document.getElementById("install-banner")?.remove()});
+    document.getElementById("dismiss-btn")?.addEventListener("click",()=>document.getElementById("install-banner")?.remove());
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent),isStandalone=window.navigator.standalone;
+    if(isIOS&&!isStandalone)setTimeout(()=>{const b=document.getElementById("install-banner");if(b){b.innerHTML=`<div style="flex:1"><div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar en iPhone</div><div style="font-size:12px;opacity:.8">Toca <strong>Compartir</strong> → "Agregar a inicio"</div></div><button id="dismiss-btn" style="background:transparent;color:#F7F3ED88;border:none;font-size:22px;cursor:pointer;padding:4px;flex-shrink:0">✕</button>`;b.classList.add("show");document.getElementById("dismiss-btn")?.addEventListener("click",()=>b.remove())}},5000);
+  </script>
+</body>
+</html>
     ReactDOM.createRoot(document.getElementById("root")).render(
       <ErrorBoundary><App/></ErrorBoundary>
     );

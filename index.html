@@ -2610,6 +2610,364 @@ Reglas estrictas:
 /* ═══════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════ */
+/* ── HABITS PANEL COMPONENT ─────────────────────────── */
+function HabitsPanel({ pillar: p, tasks, setTasks }) {
+  const [selHabits, setSelHabits] = useState(new Set());
+  const [habitDate, setHabitDate] = useState(new Date().toISOString().slice(0,10));
+  const [habitTime, setHabitTime] = useState("08:00");
+  const [habitRepeat, setHabitRepeat] = useState(true);
+  const [habitDurVal, setHabitDurVal] = useState(3);
+  const [habitDurUnit, setHabitDurUnit] = useState("semanas");
+  const [habitSaved, setHabitSaved] = useState(false);
+
+  function toggleHabit(h) {
+    setSelHabits(prev => {
+      const next = new Set(prev);
+      next.has(h) ? next.delete(h) : next.add(h);
+      return next;
+    });
+    setHabitSaved(false);
+  }
+
+  function buildHabitTasks() {
+    const list = [];
+    const start = new Date(habitDate+"T12:00");
+    const end = new Date(habitDate+"T12:00");
+    if (habitRepeat) {
+      if (habitDurUnit==="semanas") end.setDate(end.getDate()+habitDurVal*7-1);
+      else end.setDate(end.getDate()+habitDurVal-1);
+    }
+    let idx=0;
+    selHabits.forEach(h => {
+      let d = new Date(start);
+      while (d <= end) {
+        list.push({
+          id: Date.now()+idx++,
+          pillarId: p.id,
+          text: h,
+          dueDate: d.toISOString().slice(0,10),
+          time: habitTime,
+          done: false, doneAt: null,
+          recurring: habitRepeat,
+        });
+        d.setDate(d.getDate()+1);
+      }
+    });
+    return list;
+  }
+
+  function handleAddHabits() {
+    const newTasks = buildHabitTasks();
+    setTasks(prev => [...prev, ...newTasks]);
+    setHabitSaved(true);
+    setSelHabits(new Set());
+    setTimeout(()=>setHabitSaved(false), 3000);
+  }
+
+  const previewCount = buildHabitTasks().length;
+
+  return (
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"16px 18px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontFamily:T.display,fontSize:12,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>Hábitos clave</div>
+        {selHabits.size>0 && (
+          <div style={{fontSize:11,color:p.color,fontWeight:500}}>{selHabits.size} seleccionado{selHabits.size!==1?"s":""}</div>
+        )}
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:selHabits.size>0?14:0}}>
+        {p.keyHabits.map((h,i)=>{
+          const sel = selHabits.has(h);
+          const already = tasks.some(t=>t.pillarId===p.id&&t.text===h&&!t.done);
+          return (
+            <button key={i} onClick={()=>!already&&toggleHabit(h)}
+              style={{
+                background: sel?`${p.color}18`:already?`${T.forest}08`:"transparent",
+                border: sel?`1.5px solid ${p.color}66`:already?`1px solid ${T.forest}33`:`1px solid ${T.border}`,
+                borderRadius:11, padding:"10px 14px",
+                cursor: already?"default":"pointer",
+                fontFamily:T.body, textAlign:"left",
+                display:"flex", alignItems:"center", gap:12,
+                transition:"all .18s",
+              }}>
+              <div style={{
+                width:20,height:20,borderRadius:6,flexShrink:0,
+                background:sel?p.color:already?`${T.forest}22`:"transparent",
+                border:`2px solid ${sel?p.color:already?T.forest+"44":T.border}`,
+                display:"flex",alignItems:"center",justifyContent:"center",
+                transition:"all .18s",
+              }}>
+                {sel && <span style={{color:"#fff",fontSize:11,fontWeight:"bold"}}>✓</span>}
+                {already && <span style={{color:T.forest,fontSize:10}}>✓</span>}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:sel?T.ink:T.muted,fontWeight:sel?400:300,lineHeight:1.4}}>{h}</div>
+                {already && <div style={{fontSize:10,color:T.forest,marginTop:2}}>Ya en tus tareas</div>}
+              </div>
+              {!already && (
+                <span style={{fontSize:10,color:sel?p.color:T.muted,flexShrink:0}}>
+                  {sel?"✓ listo":"+ tarea"}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {selHabits.size > 0 && !habitSaved && (
+        <div style={{background:`${p.color}08`,border:`1px solid ${p.color}33`,borderRadius:12,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:12,color:p.color,fontWeight:500}}>
+            ⚙️ Configurar {selHabits.size} hábito{selHabits.size!==1?"s":""}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Inicio</div>
+              <input type="date" value={habitDate} onChange={e=>setHabitDate(e.target.value)}
+                style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
+                  borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Hora</div>
+              <input type="time" value={habitTime} onChange={e=>setHabitTime(e.target.value)}
+                style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
+                  borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontSize:12,color:T.ink}}>🔄 ¿Se repite?</div>
+            <button onClick={()=>setHabitRepeat(r=>!r)}
+              style={{width:40,height:22,borderRadius:11,border:"none",cursor:"pointer",
+                background:habitRepeat?p.color:T.border,transition:"all .2s",position:"relative"}}>
+              <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",
+                position:"absolute",top:3,left:habitRepeat?21:3,transition:"all .2s",
+                boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
+            </button>
+          </div>
+          {habitRepeat && (
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:11,color:T.muted,flexShrink:0}}>Durante:</div>
+              <button onClick={()=>setHabitDurVal(v=>Math.max(1,v-1))}
+                style={{width:26,height:26,borderRadius:7,background:T.surface,border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>−</button>
+              <div style={{fontFamily:T.mono,fontSize:15,color:p.color,fontWeight:"bold",minWidth:18,textAlign:"center"}}>{habitDurVal}</div>
+              <button onClick={()=>setHabitDurVal(v=>v+1)}
+                style={{width:26,height:26,borderRadius:7,background:T.surface,border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>+</button>
+              {["semanas","dias"].map(u=>(
+                <button key={u} onClick={()=>setHabitDurUnit(u)}
+                  style={{padding:"4px 9px",borderRadius:7,
+                    border:`1px solid ${habitDurUnit===u?p.color+"66":T.border}`,
+                    background:habitDurUnit===u?`${p.color}15`:"transparent",
+                    fontSize:11,color:habitDurUnit===u?p.color:T.muted,
+                    cursor:"pointer",fontFamily:T.body}}>
+                  {u}
+                </button>
+              ))}
+            </div>
+          )}
+          <div style={{fontSize:11,color:T.muted,fontStyle:"italic",textAlign:"center"}}>
+            Se crearán ~{previewCount} tareas en el tab Tareas
+          </div>
+          <button onClick={handleAddHabits}
+            style={{background:`linear-gradient(135deg,${p.color},${p.color}cc)`,
+              border:"none",borderRadius:11,padding:"12px",
+              fontSize:13,color:"#fff",cursor:"pointer",
+              fontFamily:T.body,fontWeight:500,
+              boxShadow:`0 4px 14px ${p.color}44`}}>
+            ✅ Agregar a Tareas
+          </button>
+        </div>
+      )}
+
+      {habitSaved && (
+        <div style={{background:`${T.forest}10`,border:`1px solid ${T.forest}33`,
+          borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,marginTop:8}}>
+          <span style={{fontSize:16}}>🌱</span>
+          <div style={{fontSize:12,color:T.forest,fontWeight:400}}>¡Hábitos guardados en Tareas!</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── CALENDAR VIEW COMPONENT ─────────────────────────── */
+function CalendarView({ tasks, myPillars, today, year, month, firstDay, daysInMonth, selDay, setSelDay, calMonth, setCalMonth }) {
+  const [calPillarFilter, setCalPillarFilter] = useState("all");
+
+  const calTasksByDate = {};
+  tasks.forEach(t => {
+    if (!t.dueDate) return;
+    if (calPillarFilter !== "all" && t.pillarId !== calPillarFilter) return;
+    (calTasksByDate[t.dueDate] = calTasksByDate[t.dueDate] || []).push(t);
+  });
+
+  function dayPillarDots(dateStr) {
+    const dt = calTasksByDate[dateStr] || [];
+    const seen = new Set();
+    const dots = [];
+    dt.forEach(t => {
+      if (!seen.has(t.pillarId)) {
+        seen.add(t.pillarId);
+        const p = ALL_PILLARS.find(p=>p.id===t.pillarId);
+        if (p) dots.push({ color: p.color, done: dt.filter(x=>x.pillarId===t.pillarId).every(x=>x.done) });
+      }
+    });
+    return dots.slice(0,4);
+  }
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+      {/* Pillar filter chips */}
+      <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+        <button onClick={()=>setCalPillarFilter("all")}
+          style={{flexShrink:0,background:calPillarFilter==="all"?T.forest:"transparent",
+            border:`1.5px solid ${calPillarFilter==="all"?T.forest:T.border}`,
+            borderRadius:20,padding:"6px 14px",fontSize:11,
+            color:calPillarFilter==="all"?"#fff":T.muted,cursor:"pointer",fontFamily:T.body,
+            fontWeight:calPillarFilter==="all"?500:300,transition:"all .2s"}}>
+          🗓️ Todos
+        </button>
+        {myPillars.map(p=>(
+          <button key={p.id} onClick={()=>setCalPillarFilter(p.id)}
+            style={{flexShrink:0,
+              background:calPillarFilter===p.id?p.color:"transparent",
+              border:`1.5px solid ${calPillarFilter===p.id?p.color:T.border}`,
+              borderRadius:20,padding:"6px 12px",fontSize:11,
+              color:calPillarFilter===p.id?"#fff":T.muted,
+              cursor:"pointer",fontFamily:T.body,
+              display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
+            <span>{p.icon}</span><span>{p.name}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <button onClick={()=>setCalMonth(new Date(year,month-1,1))}
+            style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>‹</button>
+          <div style={{fontFamily:T.display,fontSize:17,fontWeight:400,color:T.ink,textTransform:"capitalize"}}>
+            {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
+          </div>
+          <button onClick={()=>setCalMonth(new Date(year,month+1,1))}
+            style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>›</button>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
+          {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>(
+            <div key={i} style={{textAlign:"center",fontSize:9,color:T.muted,fontWeight:500,letterSpacing:.5}}>{d}</div>
+          ))}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+          {Array.from({length:daysInMonth}).map((_,i)=>{
+            const d=i+1;
+            const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+            const dt=calTasksByDate[dateStr]||[];
+            const isToday=dateStr===today;
+            const isSel=selDay===dateStr;
+            const dots=dayPillarDots(dateStr);
+            const allDone=dt.length>0&&dt.every(t=>t.done);
+            return (
+              <button key={d} onClick={()=>setSelDay(isSel?null:dateStr)}
+                style={{borderRadius:10,padding:"4px 2px",textAlign:"center",minHeight:46,
+                  background:isSel?`${T.forest}22`:isToday?`${T.forest}12`:dt.length>0?"#fff":"transparent",
+                  border:isSel?`2px solid ${T.forest}`:isToday?`1.5px solid ${T.forest}44`:dt.length>0?`1px solid ${T.border}`:"1px solid transparent",
+                  cursor:dt.length>0?"pointer":"default",transition:"all .15s",
+                  display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",
+                  paddingTop:6,gap:3,position:"relative"}}>
+                {allDone && <div style={{position:"absolute",top:2,right:3,fontSize:8,color:T.forest}}>✓</div>}
+                <span style={{fontSize:11,color:isSel||isToday?T.forest:T.ink,fontWeight:isSel||isToday?600:300,lineHeight:1}}>{d}</span>
+                {dots.length>0 && (
+                  <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"center",maxWidth:28}}>
+                    {dots.map((dot,di)=>(
+                      <div key={di} style={{width:5,height:5,borderRadius:"50%",background:dot.color,opacity:dot.done?0.4:1}}/>
+                    ))}
+                  </div>
+                )}
+                {dt.length>0 && <div style={{fontSize:8,color:T.muted,lineHeight:1}}>{dt.length}</div>}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+            {myPillars.filter(p=>tasks.some(t=>t.pillarId===p.id&&t.dueDate)).map(p=>(
+              <div key={p.id} style={{display:"flex",gap:4,alignItems:"center"}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:p.color}}/>
+                <span style={{fontSize:9,color:T.muted}}>{p.icon} {p.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Day detail panel */}
+      {selDay && (
+        <DayDetail
+          selDay={selDay}
+          calTasksByDate={calTasksByDate}
+        />
+      )}
+    </div>
+  );
+}
+
+function DayDetail({ selDay, calTasksByDate }) {
+  const dayTasks = calTasksByDate[selDay] || [];
+  const grouped = {};
+  dayTasks.forEach(t => {
+    (grouped[t.pillarId] = grouped[t.pillarId] || []).push(t);
+  });
+
+  return (
+    <div style={{background:T.card,border:`1.5px solid ${T.forest}33`,borderRadius:16,padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{fontFamily:T.display,fontSize:15,color:T.forest,fontWeight:400,textTransform:"capitalize"}}>
+          📅 {new Date(selDay+"T12:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+        </div>
+        {dayTasks.length>0 && (
+          <div style={{fontSize:11,color:T.muted}}>
+            {dayTasks.filter(t=>t.done).length}/{dayTasks.length} hechas
+          </div>
+        )}
+      </div>
+      {dayTasks.length===0 ? (
+        <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"16px 0"}}>
+          Sin tareas este día
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {Object.entries(grouped).map(([pid, ptasks])=>{
+            const p = ALL_PILLARS.find(x=>x.id===pid);
+            const doneCount = ptasks.filter(t=>t.done).length;
+            return (
+              <div key={pid}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                  marginBottom:6,paddingBottom:6,borderBottom:`1px solid ${p?.color||T.forest}22`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:8,height:8,borderRadius:"50%",background:p?.color||T.forest}}/>
+                    <span style={{fontSize:12,color:p?.color||T.forest,fontWeight:500}}>{p?.icon} {p?.name}</span>
+                  </div>
+                  <span style={{fontSize:11,color:T.muted}}>{doneCount}/{ptasks.length}</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  {ptasks.map(task=>(
+                    task.done
+                      ? <DoneRow key={task.id} task={task}/>
+                      : <TaskRow key={task.id} task={task}/>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles, propositos=[], initialTasks=[], session=null, onSignOut=null }) {
   const [tab, setTab]         = useState("home");
   const [detail, setDetail]   = useState(null);
@@ -3253,201 +3611,11 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
         </div>
 
         {/* Hábitos clave — seleccionables como tareas */}
-        {(()=>{
-          const [selHabits, setSelHabits] = useState(new Set());
-          const [habitDate, setHabitDate] = useState(new Date().toISOString().slice(0,10));
-          const [habitTime, setHabitTime] = useState("08:00");
-          const [habitRepeat, setHabitRepeat] = useState(true);
-          const [habitDurVal, setHabitDurVal] = useState(3);
-          const [habitDurUnit, setHabitDurUnit] = useState("semanas");
-          const [habitSaved, setHabitSaved] = useState(false);
-          const [showHabitConfig, setShowHabitConfig] = useState(false);
-
-          function toggleHabit(h) {
-            setSelHabits(prev => {
-              const next = new Set(prev);
-              next.has(h) ? next.delete(h) : next.add(h);
-              return next;
-            });
-            setHabitSaved(false);
-          }
-
-          function buildHabitTasks() {
-            const list = [];
-            const start = new Date(habitDate+"T12:00");
-            const end = new Date(habitDate+"T12:00");
-            if (habitRepeat) {
-              if (habitDurUnit==="semanas") end.setDate(end.getDate()+habitDurVal*7-1);
-              else end.setDate(end.getDate()+habitDurVal-1);
-            }
-            let idx=0;
-            selHabits.forEach(h => {
-              let d = new Date(start);
-              while (d <= end) {
-                list.push({
-                  id: Date.now()+idx++,
-                  pillarId: p.id,
-                  text: h,
-                  dueDate: d.toISOString().slice(0,10),
-                  time: habitTime,
-                  done: false, doneAt: null,
-                  recurring: habitRepeat,
-                });
-                d.setDate(d.getDate()+1);
-              }
-            });
-            return list;
-          }
-
-          function handleAddHabits() {
-            const newTasks = buildHabitTasks();
-            setTasks(prev => [...prev, ...newTasks]);
-            setHabitSaved(true);
-            setSelHabits(new Set());
-            setShowHabitConfig(false);
-            setTimeout(()=>setHabitSaved(false), 3000);
-          }
-
-          return (
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"16px 18px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div style={{fontFamily:T.display,fontSize:12,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>Hábitos clave</div>
-                {selHabits.size>0 && (
-                  <div style={{fontSize:11,color:p.color,fontWeight:500}}>{selHabits.size} seleccionado{selHabits.size!==1?"s":""}</div>
-                )}
-              </div>
-
-              {/* Habit list — selectable */}
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:selHabits.size>0?14:0}}>
-                {p.keyHabits.map((h,i)=>{
-                  const sel = selHabits.has(h);
-                  // Check if already a task for this pillar
-                  const already = tasks.some(t=>t.pillarId===p.id&&t.text===h&&!t.done);
-                  return (
-                    <button key={i} onClick={()=>!already&&toggleHabit(h)}
-                      style={{
-                        background: sel ? `${p.color}18` : already ? `${T.forest}08` : "transparent",
-                        border: sel ? `1.5px solid ${p.color}66` : already ? `1px solid ${T.forest}33` : `1px solid ${T.border}`,
-                        borderRadius:11, padding:"10px 14px",
-                        cursor: already ? "default" : "pointer",
-                        fontFamily:T.body, textAlign:"left",
-                        display:"flex", alignItems:"center", gap:12,
-                        transition:"all .18s",
-                      }}>
-                      {/* Checkbox */}
-                      <div style={{
-                        width:20, height:20, borderRadius:6, flexShrink:0,
-                        background: sel ? p.color : already ? `${T.forest}22` : "transparent",
-                        border: `2px solid ${sel ? p.color : already ? T.forest+"44" : T.border}`,
-                        display:"flex", alignItems:"center", justifyContent:"center",
-                        transition:"all .18s",
-                      }}>
-                        {sel && <span style={{color:"#fff",fontSize:11,fontWeight:"bold"}}>✓</span>}
-                        {already && <span style={{color:T.forest,fontSize:10}}>✓</span>}
-                      </div>
-                      <div style={{flex:1}}>
-                        <div style={{fontSize:13,color:sel?T.ink:T.muted,fontWeight:sel?400:300,lineHeight:1.4}}>{h}</div>
-                        {already && <div style={{fontSize:10,color:T.forest,marginTop:2}}>Ya en tus tareas</div>}
-                      </div>
-                      {!already && (
-                        <span style={{fontSize:10,color:sel?p.color:T.muted,flexShrink:0}}>
-                          {sel?"✓ listo":"+ tarea"}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Config panel — shown when habits selected */}
-              {selHabits.size > 0 && !habitSaved && (
-                <div style={{background:`${p.color}08`,border:`1px solid ${p.color}33`,borderRadius:12,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
-                  <div style={{fontSize:12,color:p.color,fontWeight:500}}>
-                    ⚙️ Configurar {selHabits.size} hábito{selHabits.size!==1?"s":""}
-                  </div>
-
-                  {/* Date + time */}
-                  <div style={{display:"flex",gap:8}}>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Inicio</div>
-                      <input type="date" value={habitDate} onChange={e=>setHabitDate(e.target.value)}
-                        style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
-                          borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,
-                          fontFamily:T.body,outline:"none"}}/>
-                    </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Hora</div>
-                      <input type="time" value={habitTime} onChange={e=>setHabitTime(e.target.value)}
-                        style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
-                          borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,
-                          fontFamily:T.body,outline:"none"}}/>
-                    </div>
-                  </div>
-
-                  {/* Repeat toggle */}
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{fontSize:12,color:T.ink}}>🔄 ¿Se repite?</div>
-                    <button onClick={()=>setHabitRepeat(r=>!r)}
-                      style={{width:40,height:22,borderRadius:11,border:"none",cursor:"pointer",
-                        background:habitRepeat?p.color:T.border,transition:"all .2s",position:"relative"}}>
-                      <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",
-                        position:"absolute",top:3,left:habitRepeat?21:3,
-                        transition:"all .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
-                    </button>
-                  </div>
-
-                  {/* Duration */}
-                  {habitRepeat && (
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{fontSize:11,color:T.muted,flexShrink:0}}>Durante:</div>
-                      <button onClick={()=>setHabitDurVal(v=>Math.max(1,v-1))}
-                        style={{width:26,height:26,borderRadius:7,background:T.surface,
-                          border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>−</button>
-                      <div style={{fontFamily:T.mono,fontSize:15,color:p.color,fontWeight:"bold",minWidth:18,textAlign:"center"}}>{habitDurVal}</div>
-                      <button onClick={()=>setHabitDurVal(v=>v+1)}
-                        style={{width:26,height:26,borderRadius:7,background:T.surface,
-                          border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>+</button>
-                      {["semanas","dias"].map(u=>(
-                        <button key={u} onClick={()=>setHabitDurUnit(u)}
-                          style={{padding:"4px 9px",borderRadius:7,
-                            border:`1px solid ${habitDurUnit===u?p.color+"66":T.border}`,
-                            background:habitDurUnit===u?`${p.color}15`:"transparent",
-                            fontSize:11,color:habitDurUnit===u?p.color:T.muted,
-                            cursor:"pointer",fontFamily:T.body}}>
-                          {u}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Summary */}
-                  <div style={{fontSize:11,color:T.muted,fontStyle:"italic",textAlign:"center"}}>
-                    Se crearán ~{buildHabitTasks().length} tareas en el tab Tareas
-                  </div>
-
-                  {/* CTA */}
-                  <button onClick={handleAddHabits}
-                    style={{background:`linear-gradient(135deg,${p.color},${p.color}cc)`,
-                      border:"none",borderRadius:11,padding:"12px",
-                      fontSize:13,color:"#fff",cursor:"pointer",
-                      fontFamily:T.body,fontWeight:500,
-                      boxShadow:`0 4px 14px ${p.color}44`}}>
-                    ✅ Agregar a Tareas
-                  </button>
-                </div>
-              )}
-
-              {/* Success message */}
-              {habitSaved && (
-                <div style={{background:`${T.forest}10`,border:`1px solid ${T.forest}33`,
-                  borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,marginTop:8}}>
-                  <span style={{fontSize:16}}>🌱</span>
-                  <div style={{fontSize:12,color:T.forest,fontWeight:400}}>¡Hábitos guardados en Tareas!</div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        <HabitsPanel
+          pillar={p}
+          tasks={tasks}
+          setTasks={setTasks}
+        />
 
         {/* ARIA CTA */}
         <button className="bt-btn" onClick={()=>setTab("aria")}
@@ -4002,202 +4170,21 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
         </div>
 
         {/* ═══ CALENDARIO ═══ */}
-        {calView==="calendar" && (() => {
-          // Pillar filter state lives here via closure
-          const [calPillarFilter, setCalPillarFilter] = useState("all");
-
-          // Filtered tasks by date for calendar
-          const calTasksByDate = {};
-          tasks.forEach(t => {
-            if (!t.dueDate) return;
-            if (calPillarFilter !== "all" && t.pillarId !== calPillarFilter) return;
-            (calTasksByDate[t.dueDate] = calTasksByDate[t.dueDate] || []).push(t);
-          });
-
-          // Unique pillar colors for a day
-          function dayPillarDots(dateStr) {
-            const dt = calTasksByDate[dateStr] || [];
-            const seen = new Set();
-            const dots = [];
-            dt.forEach(t => {
-              if (!seen.has(t.pillarId)) {
-                seen.add(t.pillarId);
-                const p = ALL_PILLARS.find(p=>p.id===t.pillarId);
-                if (p) dots.push({ color: p.color, done: dt.filter(x=>x.pillarId===t.pillarId).every(x=>x.done) });
-              }
-            });
-            return dots.slice(0,4); // max 4 dots per day
-          }
-
-          return (
-            <div style={{display:"flex",flexDirection:"column",gap:12}}>
-
-              {/* Pillar filter chips */}
-              <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-                <button onClick={()=>setCalPillarFilter("all")}
-                  style={{flexShrink:0,background:calPillarFilter==="all"?T.forest:"transparent",
-                    border:`1.5px solid ${calPillarFilter==="all"?T.forest:T.border}`,
-                    borderRadius:20,padding:"6px 14px",fontSize:11,
-                    color:calPillarFilter==="all"?"#fff":T.muted,cursor:"pointer",fontFamily:T.body,
-                    fontWeight:calPillarFilter==="all"?500:300,transition:"all .2s"}}>
-                  🗓️ Todos
-                </button>
-                {myPillars.map(p=>(
-                  <button key={p.id} onClick={()=>setCalPillarFilter(p.id)}
-                    style={{flexShrink:0,
-                      background:calPillarFilter===p.id?p.color:"transparent",
-                      border:`1.5px solid ${calPillarFilter===p.id?p.color:T.border}`,
-                      borderRadius:20,padding:"6px 12px",fontSize:11,
-                      color:calPillarFilter===p.id?"#fff":T.muted,
-                      cursor:"pointer",fontFamily:T.body,
-                      display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
-                    <span>{p.icon}</span><span>{p.name}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Calendar grid */}
-              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16}}>
-                {/* Month nav */}
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                  <button onClick={()=>setCalMonth(new Date(year,month-1,1))}
-                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>‹</button>
-                  <div style={{fontFamily:T.display,fontSize:17,fontWeight:400,color:T.ink,textTransform:"capitalize"}}>
-                    {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
-                  </div>
-                  <button onClick={()=>setCalMonth(new Date(year,month+1,1))}
-                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>›</button>
-                </div>
-
-                {/* Day headers */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
-                  {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>(
-                    <div key={i} style={{textAlign:"center",fontSize:9,color:T.muted,fontWeight:500,letterSpacing:.5}}>{d}</div>
-                  ))}
-                </div>
-
-                {/* Days */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-                  {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
-                  {Array.from({length:daysInMonth}).map((_,i)=>{
-                    const d=i+1;
-                    const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-                    const dt=calTasksByDate[dateStr]||[];
-                    const isToday=dateStr===today;
-                    const isSel=selDay===dateStr;
-                    const dots=dayPillarDots(dateStr);
-                    const allDone=dt.length>0&&dt.every(t=>t.done);
-                    return (
-                      <button key={d} onClick={()=>setSelDay(isSel?null:dateStr)}
-                        style={{borderRadius:10,padding:"4px 2px",textAlign:"center",minHeight:46,
-                          background:isSel?`${T.forest}22`:isToday?`${T.forest}12`:dt.length>0?"#fff":"transparent",
-                          border:isSel?`2px solid ${T.forest}`:isToday?`1.5px solid ${T.forest}44`:dt.length>0?`1px solid ${T.border}`:"1px solid transparent",
-                          cursor:dt.length>0?"pointer":"default",transition:"all .15s",
-                          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",
-                          paddingTop:6,gap:3,position:"relative"}}>
-                        {/* Done checkmark overlay */}
-                        {allDone && (
-                          <div style={{position:"absolute",top:2,right:3,fontSize:8,color:T.forest}}>✓</div>
-                        )}
-                        <span style={{fontSize:11,color:isSel||isToday?T.forest:T.ink,fontWeight:isSel||isToday?600:300,lineHeight:1}}>{d}</span>
-                        {/* Pillar color dots */}
-                        {dots.length>0 && (
-                          <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"center",maxWidth:28}}>
-                            {dots.map((dot,di)=>(
-                              <div key={di} style={{
-                                width:5,height:5,borderRadius:"50%",
-                                background:dot.color,
-                                opacity:dot.done?0.4:1,
-                                outline:dot.done?`1px solid ${dot.color}`:"none"
-                              }}/>
-                            ))}
-                          </div>
-                        )}
-                        {/* Task count badge */}
-                        {dt.length>0 && (
-                          <div style={{fontSize:8,color:T.muted,lineHeight:1}}>{dt.length}</div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Pillar legend */}
-                <div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
-                    {myPillars.filter(p=>tasks.some(t=>t.pillarId===p.id&&t.dueDate)).map(p=>(
-                      <div key={p.id} style={{display:"flex",gap:4,alignItems:"center"}}>
-                        <div style={{width:7,height:7,borderRadius:"50%",background:p.color}}/>
-                        <span style={{fontSize:9,color:T.muted}}>{p.icon} {p.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Day detail panel */}
-              {selDay && (
-                <div style={{background:T.card,border:`1.5px solid ${T.forest}33`,borderRadius:16,padding:16}}>
-                  {/* Header */}
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                    <div style={{fontFamily:T.display,fontSize:15,color:T.forest,fontWeight:400,textTransform:"capitalize"}}>
-                      📅 {new Date(selDay+"T12:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
-                    </div>
-                    {(calTasksByDate[selDay]||[]).length>0 && (
-                      <div style={{fontSize:11,color:T.muted}}>
-                        {(calTasksByDate[selDay]||[]).filter(t=>t.done).length}/{(calTasksByDate[selDay]||[]).length} hechas
-                      </div>
-                    )}
-                  </div>
-
-                  {(calTasksByDate[selDay]||[]).length===0 ? (
-                    <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"16px 0"}}>
-                      Sin tareas este día
-                    </div>
-                  ) : (
-                    // Group by pillar
-                    (() => {
-                      const dayTasks = calTasksByDate[selDay]||[];
-                      const grouped = {};
-                      dayTasks.forEach(t => {
-                        (grouped[t.pillarId] = grouped[t.pillarId]||[]).push(t);
-                      });
-                      return (
-                        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-                          {Object.entries(grouped).map(([pid, ptasks])=>{
-                            const p = ALL_PILLARS.find(x=>x.id===pid);
-                            const doneCount = ptasks.filter(t=>t.done).length;
-                            return (
-                              <div key={pid}>
-                                {/* Pillar header */}
-                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
-                                  marginBottom:6,paddingBottom:6,borderBottom:`1px solid ${p?.color||T.border}22`}}>
-                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                                    <div style={{width:8,height:8,borderRadius:"50%",background:p?.color||T.forest}}/>
-                                    <span style={{fontSize:12,color:p?.color||T.forest,fontWeight:500}}>{p?.icon} {p?.name}</span>
-                                  </div>
-                                  <span style={{fontSize:11,color:T.muted}}>{doneCount}/{ptasks.length}</span>
-                                </div>
-                                {/* Tasks for this pillar */}
-                                <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                                  {ptasks.map(task=>(
-                                    task.done
-                                      ? <DoneRow key={task.id} task={task}/>
-                                      : <TaskRow key={task.id} task={task}/>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {calView==="calendar" && (
+          <CalendarView
+            tasks={tasks}
+            myPillars={myPillars}
+            today={today}
+            year={year}
+            month={month}
+            firstDay={firstDay}
+            daysInMonth={daysInMonth}
+            selDay={selDay}
+            setSelDay={setSelDay}
+            calMonth={calMonth}
+            setCalMonth={setCalMonth}
+          />
+        )}
 
         {/* ═══ TAREAS DE HOY ═══ */}
         {calView==="tasks" && (

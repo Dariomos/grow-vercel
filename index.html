@@ -4909,6 +4909,22 @@ function AccountSettings({ session, onSignOut, onDeleteAccount }) {
         </div>
       </div>
 
+      {/* Re-do onboarding */}
+      <button onClick={async ()=>{
+          if(!session?.access_token) return;
+          await supa.upsertProfile(session.access_token, session.user.id, { active_pillars:[] });
+          window.location.reload();
+        }}
+        style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,
+          padding:"14px 16px",fontSize:14,color:T.ink,cursor:"pointer",fontFamily:T.body,
+          textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+        <span>🔄</span>
+        <div>
+          <div>Reconfigurar mi perfil</div>
+          <div style={{fontSize:11,color:T.muted,marginTop:2}}>Volver a elegir pilares y propósitos</div>
+        </div>
+      </button>
+
       {/* Sign out */}
       <button onClick={onSignOut}
         style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,
@@ -4981,19 +4997,40 @@ function App() {
       const saved = supa.loadSession();
       if (!saved?.access_token) { setAuthState("auth"); return; }
 
-      // Try to refresh token
+      // Timeout safety — never stay stuck on loading more than 8s
+      const timeout = setTimeout(() => {
+        console.warn("Auth timeout — clearing session");
+        supa.clearSession();
+        setAuthState("auth");
+      }, 8000);
+
       let token = saved.access_token;
       let user  = saved.user;
-      try {
-        const refreshed = await supa.refreshToken(saved.refresh_token);
-        if (refreshed.access_token) {
-          token = refreshed.access_token;
-          user  = refreshed.user || user;
-          supa.saveSession({ ...saved, access_token: token, refresh_token: refreshed.refresh_token });
-        }
-      } catch(e) {}
 
-      await loadUserData(token, user);
+      try {
+        // Always try to refresh token first
+        if (saved.refresh_token) {
+          const refreshed = await supa.refreshToken(saved.refresh_token);
+          if (refreshed.access_token) {
+            token = refreshed.access_token;
+            user  = refreshed.user || user;
+            supa.saveSession({ ...saved, access_token: token, refresh_token: refreshed.refresh_token });
+          } else {
+            // Refresh failed — token expired, need to login again
+            clearTimeout(timeout);
+            supa.clearSession();
+            setAuthState("auth");
+            return;
+          }
+        }
+        await loadUserData(token, user);
+      } catch(e) {
+        console.error("Init error:", e);
+        supa.clearSession();
+        setAuthState("auth");
+      } finally {
+        clearTimeout(timeout);
+      }
     }
     init();
   }, []);
@@ -5004,6 +5041,13 @@ function App() {
         supa.getProfile(token, user.id),
         supa.getTasks(token, user.id)
       ]);
+
+      // Profile null or empty → needs onboarding
+      if (!profile || !profile.active_pillars || profile.active_pillars.length === 0) {
+        setSession({ access_token: token, user });
+        setAuthState("onboarding");
+        return;
+      }
 
       if (profile?.active_pillars?.length > 0) {
         setName(profile.name || "");
@@ -5020,10 +5064,6 @@ function App() {
         })));
         setSession({ access_token: token, user });
         setAuthState("ready");
-      } else {
-        // Registered but hasn't done onboarding
-        setSession({ access_token: token, user });
-        setAuthState("onboarding");
       }
     } catch(e) {
       setAuthState("auth");
@@ -5060,11 +5100,31 @@ function App() {
     setGender(""); setProfiles({}); setPropositos([]); setInitTasks([]);
   }
 
+  const [loadingSec, setLoadingSec] = useState(0);
+  useEffect(() => {
+    if (authState !== "loading") return;
+    const t = setInterval(() => setLoadingSec(s => s+1), 1000);
+    return () => clearInterval(t);
+  }, [authState]);
+
   if (authState === "loading") return (
     <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",
-      background:"#F7F3ED",flexDirection:"column",gap:12}}>
-      <div style={{fontSize:36,animation:"bt-float 2s ease-in-out infinite"}}>🌱</div>
-      <div style={{fontFamily:T.display,fontSize:16,color:T.muted,fontStyle:"italic"}}>Cargando...</div>
+      background:"#F7F3ED",flexDirection:"column",gap:14,padding:32,textAlign:"center"}}>
+      <div style={{fontSize:40,animation:"bt-float 2s ease-in-out infinite"}}>🌱</div>
+      <div style={{fontFamily:T.display,fontSize:18,color:T.forest,fontStyle:"italic"}}>Grow</div>
+      <div style={{fontSize:13,color:T.muted}}>
+        {loadingSec < 4 ? "Cargando tu perfil..." : "Conectando con el servidor..."}
+      </div>
+      {loadingSec >= 6 && (
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:8}}>
+          <div style={{fontSize:12,color:T.muted}}>Está tardando más de lo normal</div>
+          <button onClick={()=>{ supa.clearSession(); setAuthState("auth"); }}
+            style={{background:T.forest,border:"none",borderRadius:12,padding:"11px 24px",
+              fontSize:13,color:"#fff",cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+            Ir al inicio de sesión
+          </button>
+        </div>
+      )}
     </div>
   );
 

@@ -2987,81 +2987,477 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
   const DetailTab = ()=>{
     const p = detail;
     if(!p) return null;
+
+    // Real data from tasks
+    const pillarTasks    = tasks.filter(t => t.pillarId === p.id);
+    const doneTasks      = pillarTasks.filter(t => t.done);
+    const pendingTasks   = pillarTasks.filter(t => !t.done);
+    const todayStr       = new Date().toISOString().slice(0,10);
+    const todayTasks     = pendingTasks.filter(t => t.dueDate === todayStr);
+    const upcomingTasks  = pendingTasks.filter(t => t.dueDate && t.dueDate > todayStr)
+                            .sort((a,b)=>a.dueDate.localeCompare(b.dueDate)).slice(0,5);
+
+    // Real progress %
+    const realProgress = pillarTasks.length > 0
+      ? Math.round(doneTasks.length / pillarTasks.length * 100) : 0;
+
+    // Streak for this pillar — consecutive days with at least one done task
+    const pillarStreak = (() => {
+      const doneDays = new Set(doneTasks.filter(t=>t.doneAt).map(t=>t.doneAt.slice(0,10)));
+      let streak = 0;
+      const d = new Date();
+      while (doneDays.has(d.toISOString().slice(0,10))) {
+        streak++;
+        d.setDate(d.getDate()-1);
+      }
+      return streak;
+    })();
+
+    // Best streak ever
+    const bestStreak = (() => {
+      const days = [...new Set(doneTasks.filter(t=>t.doneAt).map(t=>t.doneAt.slice(0,10)))].sort();
+      let best=0, cur=0, prev=null;
+      days.forEach(day => {
+        if (prev) {
+          const diff = (new Date(day) - new Date(prev)) / 86400000;
+          cur = diff === 1 ? cur+1 : 1;
+        } else { cur=1; }
+        if (cur>best) best=cur;
+        prev=day;
+      });
+      return best;
+    })();
+
+    // Achievements
+    const achievements = [];
+    if (doneTasks.length >= 1)  achievements.push({icon:"🌱", label:"Primera tarea", desc:"Completaste tu primera tarea"});
+    if (doneTasks.length >= 7)  achievements.push({icon:"✨", label:"7 tareas", desc:"Una semana de acción"});
+    if (doneTasks.length >= 21) achievements.push({icon:"🌿", label:"21 tareas", desc:"Hábito en formación"});
+    if (doneTasks.length >= 50) achievements.push({icon:"🌳", label:"50 tareas", desc:"Árbol en crecimiento"});
+    if (pillarStreak >= 3)      achievements.push({icon:"🔥", label:"Racha de 3 días", desc:"3 días consecutivos"});
+    if (pillarStreak >= 7)      achievements.push({icon:"💫", label:"Racha de 7 días", desc:"Una semana imparable"});
+    if (bestStreak >= 14)       achievements.push({icon:"🏆", label:"14 días seguidos", desc:"Campeón de constancia"});
+    if (realProgress >= 25)     achievements.push({icon:"🥉", label:"25% completado", desc:"Un cuarto del camino"});
+    if (realProgress >= 50)     achievements.push({icon:"🥈", label:"Mitad del camino", desc:"50% completado"});
+    if (realProgress >= 100)    achievements.push({icon:"🥇", label:"¡Pilar completado!", desc:"¡Todas las tareas hechas!"});
+
     return (
-      <div style={{padding:"18px 16px 100px 16px",display:"flex",flexDirection:"column",gap:14}}>
-        <button className="bt-btn" onClick={()=>setTab("home")}
-          style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,padding:"6px 14px",fontSize:11,color:T.muted,cursor:"pointer",fontFamily:T.body,alignSelf:"flex-start"}}>
-          ← Volver
+      <div style={{padding:"18px 16px 100px",display:"flex",flexDirection:"column",gap:16}}>
+
+        {/* Back */}
+        <button onClick={()=>setTab("home")}
+          style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+            padding:"6px 14px",fontSize:11,color:T.muted,cursor:"pointer",
+            fontFamily:T.body,alignSelf:"flex-start",display:"flex",alignItems:"center",gap:5}}>
+          ← Inicio
         </button>
 
-        {/* Hero */}
+        {/* Hero con progreso real */}
         <div className="bt-bloom" style={{
           background:`linear-gradient(135deg,${p.color}12,${T.card})`,
-          border:`1px solid ${p.color}44`,borderRadius:18,padding:"22px",
-          display:"flex",gap:16,alignItems:"center",
+          border:`1px solid ${p.color}44`,borderRadius:20,padding:"22px",
           boxShadow:`0 4px 24px ${p.color}14`,
         }}>
-          <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <Ring pct={p.progress||2} color={p.color} size={72} stroke={4} bg={T.border}/>
-            <span style={{position:"absolute",fontSize:26}}>{p.icon}</span>
+          <div style={{display:"flex",gap:16,alignItems:"center",marginBottom:16}}>
+            <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Ring pct={realProgress||2} color={p.color} size={76} stroke={5} bg={T.border}/>
+              <span style={{position:"absolute",fontSize:28}}>{p.icon}</span>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:T.display,fontSize:22,fontWeight:500,color:T.ink,marginBottom:3}}>{p.name}</div>
+              <div style={{fontSize:12,color:T.muted,fontStyle:"italic",fontFamily:T.display,marginBottom:10}}>{p.quote}</div>
+              {/* Stats row */}
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                <div style={{background:`${p.color}18`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}>
+                  <div style={{fontFamily:T.mono,fontSize:18,fontWeight:"bold",color:p.color,lineHeight:1}}>{realProgress}%</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:2}}>progreso</div>
+                </div>
+                <div style={{background:`${T.amber}15`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}>
+                  <div style={{fontFamily:T.mono,fontSize:18,fontWeight:"bold",color:T.amber,lineHeight:1}}>{pillarStreak}🔥</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:2}}>racha actual</div>
+                </div>
+                <div style={{background:`${T.forest}10`,borderRadius:8,padding:"5px 10px",textAlign:"center"}}>
+                  <div style={{fontFamily:T.mono,fontSize:18,fontWeight:"bold",color:T.forest,lineHeight:1}}>{doneTasks.length}</div>
+                  <div style={{fontSize:9,color:T.muted,marginTop:2}}>completadas</div>
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Progress bar */}
           <div>
-            <div style={{fontFamily:T.display,fontSize:20,fontWeight:500,color:T.ink,marginBottom:3}}>{p.name}</div>
-            <div style={{fontSize:12,color:T.muted,fontStyle:"italic",fontFamily:T.display,marginBottom:8}}>{p.quote}</div>
-            <div style={{display:"flex",gap:12}}>
-              <span style={{fontSize:11,color:p.color,fontFamily:T.mono}}>{p.progress}%</span>
-              <span style={{fontSize:11,color:T.amber}}>🔥 {p.streak}d racha</span>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <span style={{fontSize:11,color:T.muted}}>{doneTasks.length} de {pillarTasks.length} tareas completadas</span>
+              <span style={{fontSize:11,color:p.color,fontWeight:500}}>{realProgress}%</span>
+            </div>
+            <div style={{height:8,background:T.border,borderRadius:4,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:4,
+                background:`linear-gradient(90deg,${p.color},${p.color}99)`,
+                width:`${realProgress}%`,transition:"width .8s ease"}}/>
             </div>
           </div>
         </div>
 
-        {/* Why */}
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"16px 18px",boxShadow:`0 2px 12px ${T.sand}44`}}>
+        {/* Tareas de HOY */}
+        {todayTasks.length > 0 && (
+          <div style={{background:T.card,border:`1.5px solid ${p.color}44`,borderRadius:16,padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:11,color:p.color,letterSpacing:2,textTransform:"uppercase",fontWeight:500}}>📅 Hoy</div>
+              <div style={{fontSize:11,color:T.muted}}>{todayTasks.length} pendiente{todayTasks.length!==1?"s":""}</div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:7}}>
+              {todayTasks.map(task=>(
+                <button key={task.id}
+                  onClick={()=>{ setTab("tasks"); }}
+                  style={{background:`${p.color}08`,border:`1px solid ${p.color}33`,
+                    borderRadius:11,padding:"10px 14px",cursor:"pointer",
+                    fontFamily:T.body,textAlign:"left",
+                    display:"flex",alignItems:"center",gap:10,transition:"all .15s"}}>
+                  <div style={{width:10,height:10,borderRadius:3,border:`2px solid ${p.color}88`,flexShrink:0}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,color:T.ink,fontWeight:300}}>{task.text}</div>
+                    {task.time && <div style={{fontSize:10,color:T.muted,marginTop:2}}>🕐 {task.time}</div>}
+                  </div>
+                  <span style={{fontSize:10,color:T.muted}}>→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Próximas tareas */}
+        {upcomingTasks.length > 0 && (
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"14px 16px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>Próximas</div>
+              <button onClick={()=>setTab("tasks")}
+                style={{background:"none",border:"none",fontSize:11,color:p.color,cursor:"pointer",fontFamily:T.body}}>
+                Ver todas →
+              </button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {upcomingTasks.map(task=>(
+                <button key={task.id} onClick={()=>setTab("tasks")}
+                  style={{background:"transparent",border:`1px solid ${T.border}`,
+                    borderRadius:10,padding:"9px 12px",cursor:"pointer",
+                    fontFamily:T.body,textAlign:"left",
+                    display:"flex",alignItems:"center",gap:10,transition:"all .15s"}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:p.color,flexShrink:0,opacity:.6}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,color:T.ink,fontWeight:300}}>{task.text}</div>
+                    <div style={{fontSize:10,color:T.muted,marginTop:1}}>
+                      📅 {new Date(task.dueDate+"T12:00").toLocaleDateString("es",{weekday:"short",day:"numeric",month:"short"})}
+                      {task.time && ` · 🕐 ${task.time}`}
+                    </div>
+                  </div>
+                  <span style={{fontSize:10,color:T.muted}}>→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sin tareas CTA */}
+        {pillarTasks.length === 0 && (
+          <div style={{background:`${p.color}08`,border:`1.5px dashed ${p.color}44`,
+            borderRadius:16,padding:"20px",textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:8}}>{p.icon}</div>
+            <div style={{fontFamily:T.display,fontSize:15,color:T.ink,fontStyle:"italic",marginBottom:4}}>
+              Sin tareas aún para {p.name}
+            </div>
+            <div style={{fontSize:12,color:T.muted,marginBottom:14}}>Agrega actividades para ver tu progreso real</div>
+            <button onClick={()=>setTab("tasks")}
+              style={{background:`linear-gradient(135deg,${p.color},${p.color}cc)`,
+                border:"none",borderRadius:12,padding:"11px 22px",
+                fontSize:13,color:"#fff",cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+              + Agregar tareas →
+            </button>
+          </div>
+        )}
+
+        {/* Logros */}
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"14px 16px"}}>
+          <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>🏆 Logros</div>
+          {achievements.length === 0 ? (
+            <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"8px 0"}}>
+              Completa tareas para desbloquear logros 🌱
+            </div>
+          ) : (
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {achievements.map((a,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:12,
+                  background:`${p.color}08`,borderRadius:10,padding:"10px 12px",
+                  border:`1px solid ${p.color}22`}}>
+                  <span style={{fontSize:22,flexShrink:0}}>{a.icon}</span>
+                  <div>
+                    <div style={{fontSize:13,color:T.ink,fontWeight:500}}>{a.label}</div>
+                    <div style={{fontSize:11,color:T.muted,marginTop:1}}>{a.desc}</div>
+                  </div>
+                </div>
+              ))}
+              {/* Locked next achievement */}
+              {(() => {
+                const MILESTONES = [
+                  {need: doneTasks.length < 1,  icon:"🌱", label:"Primera tarea"},
+                  {need: doneTasks.length < 7,  icon:"✨", label:"7 tareas completadas"},
+                  {need: doneTasks.length < 21, icon:"🌿", label:"21 tareas"},
+                  {need: doneTasks.length < 50, icon:"🌳", label:"50 tareas"},
+                  {need: pillarStreak < 3,       icon:"🔥", label:"Racha de 3 días"},
+                  {need: pillarStreak < 7,       icon:"💫", label:"Racha de 7 días"},
+                  {need: realProgress < 25,      icon:"🥉", label:"25% progreso"},
+                  {need: realProgress < 50,      icon:"🥈", label:"50% progreso"},
+                  {need: realProgress < 100,     icon:"🥇", label:"Completar el pilar"},
+                ];
+                const next = MILESTONES.find(m=>m.need);
+                if (!next) return null;
+                return (
+                  <div style={{display:"flex",alignItems:"center",gap:12,
+                    background:T.border+"44",borderRadius:10,padding:"10px 12px",
+                    border:`1px dashed ${T.border}`,opacity:.6}}>
+                    <span style={{fontSize:22,filter:"grayscale(1)",flexShrink:0}}>{next.icon}</span>
+                    <div>
+                      <div style={{fontSize:12,color:T.muted}}>🔒 {next.label}</div>
+                      <div style={{fontSize:10,color:T.muted,marginTop:1}}>Próximo logro por desbloquear</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* Rachas */}
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"14px 16px"}}>
+          <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>🔥 Rachas</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[
+              {label:"Racha actual", value:`${pillarStreak} días`, color:T.amber, icon:"🔥"},
+              {label:"Mejor racha", value:`${bestStreak} días`, color:p.color, icon:"🏆"},
+              {label:"Total completadas", value:doneTasks.length, color:T.forest, icon:"✅"},
+              {label:"Pendientes", value:pendingTasks.length, color:T.muted, icon:"📋"},
+            ].map((s,i)=>(
+              <div key={i} style={{background:`${s.color}10`,border:`1px solid ${s.color}22`,
+                borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
+                <div style={{fontSize:20,marginBottom:4}}>{s.icon}</div>
+                <div style={{fontFamily:T.mono,fontSize:20,fontWeight:"bold",color:s.color,lineHeight:1}}>{s.value}</div>
+                <div style={{fontSize:10,color:T.muted,marginTop:4}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ¿Por qué importa? */}
+        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"16px 18px"}}>
           <div style={{fontFamily:T.display,fontSize:12,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>¿Por qué importa?</div>
           <div style={{fontSize:12,color:T.muted,lineHeight:1.8,fontWeight:300}}>{p.why}</div>
         </div>
 
-        {/* Fundamentos detail */}
-        {p.id==="fundamentos" && (
-          <div style={{background:`${T.blush}10`,border:`1px solid ${T.blush}44`,borderRadius:14,padding:"16px 18px"}}>
-            <div style={{fontFamily:T.display,fontSize:13,color:T.blush,letterSpacing:1,marginBottom:14}}>🏛️ Los tres fundamentos</div>
-            {[
-              {v:"🧠 Disciplina",d:"Hacer lo que toca aunque no haya ganas. Es el músculo más poderoso que puedes desarrollar — se entrena, no se tiene."},
-              {v:"🔥 Constancia",d:"Un pequeño paso cada día construye montañas. No es la intensidad — es la frecuencia. 66 días para automatizar un hábito."},
-              {v:"🌸 Amor Propio",d:"Tratarte como tratarías a tu mejor amigo/a. La autocompasión no es debilidad — es la base del cambio real y duradero."},
-            ].map((item,i)=>(
-              <div key={i} style={{marginBottom:i<2?14:0}}>
-                <div style={{fontFamily:T.display,fontSize:13,fontWeight:500,color:T.ink,marginBottom:4}}>{item.v}</div>
-                <div style={{fontSize:11,color:T.muted,lineHeight:1.7,paddingLeft:8,borderLeft:`2px solid ${T.blush}44`,fontWeight:300}}>{item.d}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Hábitos clave — seleccionables como tareas */}
+        {(()=>{
+          const [selHabits, setSelHabits] = useState(new Set());
+          const [habitDate, setHabitDate] = useState(new Date().toISOString().slice(0,10));
+          const [habitTime, setHabitTime] = useState("08:00");
+          const [habitRepeat, setHabitRepeat] = useState(true);
+          const [habitDurVal, setHabitDurVal] = useState(3);
+          const [habitDurUnit, setHabitDurUnit] = useState("semanas");
+          const [habitSaved, setHabitSaved] = useState(false);
+          const [showHabitConfig, setShowHabitConfig] = useState(false);
 
-        {/* Key habits */}
-        <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"16px 18px",boxShadow:`0 2px 12px ${T.sand}33`}}>
-          <div style={{fontFamily:T.display,fontSize:12,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:12}}>Hábitos clave</div>
-          {p.keyHabits.map((h,i)=>(
-            <div key={i} style={{
-              fontSize:12,color:T.muted,marginBottom:10,
-              paddingLeft:12,borderLeft:`2px solid ${p.color}44`,
-              lineHeight:1.6,fontWeight:300,
-            }}>▸ {h}</div>
-          ))}
-        </div>
+          function toggleHabit(h) {
+            setSelHabits(prev => {
+              const next = new Set(prev);
+              next.has(h) ? next.delete(h) : next.add(h);
+              return next;
+            });
+            setHabitSaved(false);
+          }
+
+          function buildHabitTasks() {
+            const list = [];
+            const start = new Date(habitDate+"T12:00");
+            const end = new Date(habitDate+"T12:00");
+            if (habitRepeat) {
+              if (habitDurUnit==="semanas") end.setDate(end.getDate()+habitDurVal*7-1);
+              else end.setDate(end.getDate()+habitDurVal-1);
+            }
+            let idx=0;
+            selHabits.forEach(h => {
+              let d = new Date(start);
+              while (d <= end) {
+                list.push({
+                  id: Date.now()+idx++,
+                  pillarId: p.id,
+                  text: h,
+                  dueDate: d.toISOString().slice(0,10),
+                  time: habitTime,
+                  done: false, doneAt: null,
+                  recurring: habitRepeat,
+                });
+                d.setDate(d.getDate()+1);
+              }
+            });
+            return list;
+          }
+
+          function handleAddHabits() {
+            const newTasks = buildHabitTasks();
+            setTasks(prev => [...prev, ...newTasks]);
+            setHabitSaved(true);
+            setSelHabits(new Set());
+            setShowHabitConfig(false);
+            setTimeout(()=>setHabitSaved(false), 3000);
+          }
+
+          return (
+            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"16px 18px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontFamily:T.display,fontSize:12,color:T.muted,letterSpacing:2,textTransform:"uppercase"}}>Hábitos clave</div>
+                {selHabits.size>0 && (
+                  <div style={{fontSize:11,color:p.color,fontWeight:500}}>{selHabits.size} seleccionado{selHabits.size!==1?"s":""}</div>
+                )}
+              </div>
+
+              {/* Habit list — selectable */}
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:selHabits.size>0?14:0}}>
+                {p.keyHabits.map((h,i)=>{
+                  const sel = selHabits.has(h);
+                  // Check if already a task for this pillar
+                  const already = tasks.some(t=>t.pillarId===p.id&&t.text===h&&!t.done);
+                  return (
+                    <button key={i} onClick={()=>!already&&toggleHabit(h)}
+                      style={{
+                        background: sel ? `${p.color}18` : already ? `${T.forest}08` : "transparent",
+                        border: sel ? `1.5px solid ${p.color}66` : already ? `1px solid ${T.forest}33` : `1px solid ${T.border}`,
+                        borderRadius:11, padding:"10px 14px",
+                        cursor: already ? "default" : "pointer",
+                        fontFamily:T.body, textAlign:"left",
+                        display:"flex", alignItems:"center", gap:12,
+                        transition:"all .18s",
+                      }}>
+                      {/* Checkbox */}
+                      <div style={{
+                        width:20, height:20, borderRadius:6, flexShrink:0,
+                        background: sel ? p.color : already ? `${T.forest}22` : "transparent",
+                        border: `2px solid ${sel ? p.color : already ? T.forest+"44" : T.border}`,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                        transition:"all .18s",
+                      }}>
+                        {sel && <span style={{color:"#fff",fontSize:11,fontWeight:"bold"}}>✓</span>}
+                        {already && <span style={{color:T.forest,fontSize:10}}>✓</span>}
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,color:sel?T.ink:T.muted,fontWeight:sel?400:300,lineHeight:1.4}}>{h}</div>
+                        {already && <div style={{fontSize:10,color:T.forest,marginTop:2}}>Ya en tus tareas</div>}
+                      </div>
+                      {!already && (
+                        <span style={{fontSize:10,color:sel?p.color:T.muted,flexShrink:0}}>
+                          {sel?"✓ listo":"+ tarea"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Config panel — shown when habits selected */}
+              {selHabits.size > 0 && !habitSaved && (
+                <div style={{background:`${p.color}08`,border:`1px solid ${p.color}33`,borderRadius:12,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{fontSize:12,color:p.color,fontWeight:500}}>
+                    ⚙️ Configurar {selHabits.size} hábito{selHabits.size!==1?"s":""}
+                  </div>
+
+                  {/* Date + time */}
+                  <div style={{display:"flex",gap:8}}>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Inicio</div>
+                      <input type="date" value={habitDate} onChange={e=>setHabitDate(e.target.value)}
+                        style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
+                          borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,
+                          fontFamily:T.body,outline:"none"}}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:10,color:T.muted,marginBottom:4}}>Hora</div>
+                      <input type="time" value={habitTime} onChange={e=>setHabitTime(e.target.value)}
+                        style={{width:"100%",background:T.surface,border:`1px solid ${T.border}`,
+                          borderRadius:9,padding:"7px 9px",fontSize:12,color:T.ink,
+                          fontFamily:T.body,outline:"none"}}/>
+                    </div>
+                  </div>
+
+                  {/* Repeat toggle */}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontSize:12,color:T.ink}}>🔄 ¿Se repite?</div>
+                    <button onClick={()=>setHabitRepeat(r=>!r)}
+                      style={{width:40,height:22,borderRadius:11,border:"none",cursor:"pointer",
+                        background:habitRepeat?p.color:T.border,transition:"all .2s",position:"relative"}}>
+                      <div style={{width:16,height:16,borderRadius:"50%",background:"#fff",
+                        position:"absolute",top:3,left:habitRepeat?21:3,
+                        transition:"all .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/>
+                    </button>
+                  </div>
+
+                  {/* Duration */}
+                  {habitRepeat && (
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{fontSize:11,color:T.muted,flexShrink:0}}>Durante:</div>
+                      <button onClick={()=>setHabitDurVal(v=>Math.max(1,v-1))}
+                        style={{width:26,height:26,borderRadius:7,background:T.surface,
+                          border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>−</button>
+                      <div style={{fontFamily:T.mono,fontSize:15,color:p.color,fontWeight:"bold",minWidth:18,textAlign:"center"}}>{habitDurVal}</div>
+                      <button onClick={()=>setHabitDurVal(v=>v+1)}
+                        style={{width:26,height:26,borderRadius:7,background:T.surface,
+                          border:`1px solid ${T.border}`,fontSize:14,cursor:"pointer",color:T.ink}}>+</button>
+                      {["semanas","dias"].map(u=>(
+                        <button key={u} onClick={()=>setHabitDurUnit(u)}
+                          style={{padding:"4px 9px",borderRadius:7,
+                            border:`1px solid ${habitDurUnit===u?p.color+"66":T.border}`,
+                            background:habitDurUnit===u?`${p.color}15`:"transparent",
+                            fontSize:11,color:habitDurUnit===u?p.color:T.muted,
+                            cursor:"pointer",fontFamily:T.body}}>
+                          {u}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  <div style={{fontSize:11,color:T.muted,fontStyle:"italic",textAlign:"center"}}>
+                    Se crearán ~{buildHabitTasks().length} tareas en el tab Tareas
+                  </div>
+
+                  {/* CTA */}
+                  <button onClick={handleAddHabits}
+                    style={{background:`linear-gradient(135deg,${p.color},${p.color}cc)`,
+                      border:"none",borderRadius:11,padding:"12px",
+                      fontSize:13,color:"#fff",cursor:"pointer",
+                      fontFamily:T.body,fontWeight:500,
+                      boxShadow:`0 4px 14px ${p.color}44`}}>
+                    ✅ Agregar a Tareas
+                  </button>
+                </div>
+              )}
+
+              {/* Success message */}
+              {habitSaved && (
+                <div style={{background:`${T.forest}10`,border:`1px solid ${T.forest}33`,
+                  borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:8,marginTop:8}}>
+                  <span style={{fontSize:16}}>🌱</span>
+                  <div style={{fontSize:12,color:T.forest,fontWeight:400}}>¡Hábitos guardados en Tareas!</div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ARIA CTA */}
-        <button className="bt-btn" onClick={()=>{
-          setTab("aria");
-        }} style={{
-          background:`${p.color}12`,border:`1px solid ${p.color}44`,
-          borderRadius:14,padding:"14px 18px",cursor:"pointer",
-          fontFamily:T.body,color:T.ink,fontSize:13,fontWeight:300,
-          display:"flex",alignItems:"center",gap:12,
-          boxShadow:`0 4px 16px ${p.color}14`,
-        }}>
+        <button className="bt-btn" onClick={()=>setTab("aria")}
+          style={{background:`${p.color}12`,border:`1px solid ${p.color}44`,
+            borderRadius:14,padding:"14px 18px",cursor:"pointer",
+            fontFamily:T.body,color:T.ink,fontSize:13,fontWeight:300,
+            display:"flex",alignItems:"center",gap:12,
+            boxShadow:`0 4px 16px ${p.color}14`}}>
           <span style={{fontSize:20}}>🌿</span>
-          <span>Pedirle a ARIA un plan de 7 días para <strong style={{fontFamily:T.display,fontWeight:500}}>{p.name}</strong> →</span>
+          <span>Pedirle a ARIA un plan para <strong style={{fontFamily:T.display,fontWeight:500}}>{p.name}</strong> →</span>
         </button>
       </div>
     );
@@ -3606,76 +4002,202 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
         </div>
 
         {/* ═══ CALENDARIO ═══ */}
-        {calView==="calendar" && (
-          <div>
-            <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16,marginBottom:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <button onClick={()=>setCalMonth(new Date(year,month-1,1))}
-                  style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>‹</button>
-                <div style={{fontFamily:T.display,fontSize:17,fontWeight:400,color:T.ink,textTransform:"capitalize"}}>
-                  {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
-                </div>
-                <button onClick={()=>setCalMonth(new Date(year,month+1,1))}
-                  style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>›</button>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
-                {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>(
-                  <div key={i} style={{textAlign:"center",fontSize:9,color:T.muted,fontWeight:500}}>{d}</div>
+        {calView==="calendar" && (() => {
+          // Pillar filter state lives here via closure
+          const [calPillarFilter, setCalPillarFilter] = useState("all");
+
+          // Filtered tasks by date for calendar
+          const calTasksByDate = {};
+          tasks.forEach(t => {
+            if (!t.dueDate) return;
+            if (calPillarFilter !== "all" && t.pillarId !== calPillarFilter) return;
+            (calTasksByDate[t.dueDate] = calTasksByDate[t.dueDate] || []).push(t);
+          });
+
+          // Unique pillar colors for a day
+          function dayPillarDots(dateStr) {
+            const dt = calTasksByDate[dateStr] || [];
+            const seen = new Set();
+            const dots = [];
+            dt.forEach(t => {
+              if (!seen.has(t.pillarId)) {
+                seen.add(t.pillarId);
+                const p = ALL_PILLARS.find(p=>p.id===t.pillarId);
+                if (p) dots.push({ color: p.color, done: dt.filter(x=>x.pillarId===t.pillarId).every(x=>x.done) });
+              }
+            });
+            return dots.slice(0,4); // max 4 dots per day
+          }
+
+          return (
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+
+              {/* Pillar filter chips */}
+              <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+                <button onClick={()=>setCalPillarFilter("all")}
+                  style={{flexShrink:0,background:calPillarFilter==="all"?T.forest:"transparent",
+                    border:`1.5px solid ${calPillarFilter==="all"?T.forest:T.border}`,
+                    borderRadius:20,padding:"6px 14px",fontSize:11,
+                    color:calPillarFilter==="all"?"#fff":T.muted,cursor:"pointer",fontFamily:T.body,
+                    fontWeight:calPillarFilter==="all"?500:300,transition:"all .2s"}}>
+                  🗓️ Todos
+                </button>
+                {myPillars.map(p=>(
+                  <button key={p.id} onClick={()=>setCalPillarFilter(p.id)}
+                    style={{flexShrink:0,
+                      background:calPillarFilter===p.id?p.color:"transparent",
+                      border:`1.5px solid ${calPillarFilter===p.id?p.color:T.border}`,
+                      borderRadius:20,padding:"6px 12px",fontSize:11,
+                      color:calPillarFilter===p.id?"#fff":T.muted,
+                      cursor:"pointer",fontFamily:T.body,
+                      display:"flex",alignItems:"center",gap:4,transition:"all .2s"}}>
+                    <span>{p.icon}</span><span>{p.name}</span>
+                  </button>
                 ))}
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-                {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
-                {Array.from({length:daysInMonth}).map((_,i)=>{
-                  const d=i+1;
-                  const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-                  const dt=tasksByDate[dateStr]||[];
-                  const isToday=dateStr===today;
-                  const isSel=selDay===dateStr;
-                  const hasDone=dt.some(t=>t.done);
-                  const hasPending=dt.some(t=>!t.done);
-                  return (
-                    <button key={d} onClick={()=>setSelDay(isSel?null:dateStr)}
-                      style={{borderRadius:10,padding:"5px 2px",textAlign:"center",minHeight:44,
-                        background:isSel?`${T.forest}20`:isToday?`${T.forest}12`:dt.length>0?"#fff":"transparent",
-                        border:isSel?`2px solid ${T.forest}`:isToday?`1.5px solid ${T.forest}44`:dt.length>0?`1px solid ${T.border}`:"1px solid transparent",
-                        cursor:"pointer",transition:"all .15s",
-                        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2}}>
-                      <span style={{fontSize:12,color:isSel||isToday?T.forest:T.ink,fontWeight:isSel||isToday?600:300}}>{d}</span>
-                      {dt.length>0 && (
-                        <div style={{display:"flex",gap:2}}>
-                          {hasDone && <div style={{width:5,height:5,borderRadius:"50%",background:T.forest}}/>}
-                          {hasPending && <div style={{width:5,height:5,borderRadius:"50%",background:T.amber}}/>}
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-              <div style={{display:"flex",gap:16,marginTop:10,justifyContent:"center"}}>
-                <div style={{display:"flex",gap:5,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.forest}}/><span style={{fontSize:10,color:T.muted}}>Completada</span></div>
-                <div style={{display:"flex",gap:5,alignItems:"center"}}><div style={{width:7,height:7,borderRadius:"50%",background:T.amber}}/><span style={{fontSize:10,color:T.muted}}>Pendiente</span></div>
-              </div>
-            </div>
-            {/* Day detail */}
-            {selDay && (
-              <div style={{background:T.card,border:`1.5px solid ${T.forest}33`,borderRadius:16,padding:14}}>
-                <div style={{fontFamily:T.display,fontSize:14,color:T.forest,marginBottom:10}}>
-                  📅 {new Date(selDay+"T12:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+
+              {/* Calendar grid */}
+              <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:16}}>
+                {/* Month nav */}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <button onClick={()=>setCalMonth(new Date(year,month-1,1))}
+                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>‹</button>
+                  <div style={{fontFamily:T.display,fontSize:17,fontWeight:400,color:T.ink,textTransform:"capitalize"}}>
+                    {calMonth.toLocaleDateString("es",{month:"long",year:"numeric"})}
+                  </div>
+                  <button onClick={()=>setCalMonth(new Date(year,month+1,1))}
+                    style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.muted,padding:"4px 10px"}}>›</button>
                 </div>
-                {(tasksByDate[selDay]||[]).length===0
-                  ? <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"12px 0"}}>Sin tareas este día</div>
-                  : <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {(tasksByDate[selDay]||[]).map(task=>(
-                        task.done
-                          ? <DoneRow key={task.id} task={task}/>
-                          : <TaskRow key={task.id} task={task}/>
-                      ))}
-                    </div>
-                }
+
+                {/* Day headers */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:6}}>
+                  {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i)=>(
+                    <div key={i} style={{textAlign:"center",fontSize:9,color:T.muted,fontWeight:500,letterSpacing:.5}}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Days */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+                  {Array.from({length:firstDay}).map((_,i)=><div key={"e"+i}/>)}
+                  {Array.from({length:daysInMonth}).map((_,i)=>{
+                    const d=i+1;
+                    const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+                    const dt=calTasksByDate[dateStr]||[];
+                    const isToday=dateStr===today;
+                    const isSel=selDay===dateStr;
+                    const dots=dayPillarDots(dateStr);
+                    const allDone=dt.length>0&&dt.every(t=>t.done);
+                    return (
+                      <button key={d} onClick={()=>setSelDay(isSel?null:dateStr)}
+                        style={{borderRadius:10,padding:"4px 2px",textAlign:"center",minHeight:46,
+                          background:isSel?`${T.forest}22`:isToday?`${T.forest}12`:dt.length>0?"#fff":"transparent",
+                          border:isSel?`2px solid ${T.forest}`:isToday?`1.5px solid ${T.forest}44`:dt.length>0?`1px solid ${T.border}`:"1px solid transparent",
+                          cursor:dt.length>0?"pointer":"default",transition:"all .15s",
+                          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",
+                          paddingTop:6,gap:3,position:"relative"}}>
+                        {/* Done checkmark overlay */}
+                        {allDone && (
+                          <div style={{position:"absolute",top:2,right:3,fontSize:8,color:T.forest}}>✓</div>
+                        )}
+                        <span style={{fontSize:11,color:isSel||isToday?T.forest:T.ink,fontWeight:isSel||isToday?600:300,lineHeight:1}}>{d}</span>
+                        {/* Pillar color dots */}
+                        {dots.length>0 && (
+                          <div style={{display:"flex",gap:2,flexWrap:"wrap",justifyContent:"center",maxWidth:28}}>
+                            {dots.map((dot,di)=>(
+                              <div key={di} style={{
+                                width:5,height:5,borderRadius:"50%",
+                                background:dot.color,
+                                opacity:dot.done?0.4:1,
+                                outline:dot.done?`1px solid ${dot.color}`:"none"
+                              }}/>
+                            ))}
+                          </div>
+                        )}
+                        {/* Task count badge */}
+                        {dt.length>0 && (
+                          <div style={{fontSize:8,color:T.muted,lineHeight:1}}>{dt.length}</div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Pillar legend */}
+                <div style={{marginTop:12,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+                    {myPillars.filter(p=>tasks.some(t=>t.pillarId===p.id&&t.dueDate)).map(p=>(
+                      <div key={p.id} style={{display:"flex",gap:4,alignItems:"center"}}>
+                        <div style={{width:7,height:7,borderRadius:"50%",background:p.color}}/>
+                        <span style={{fontSize:9,color:T.muted}}>{p.icon} {p.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Day detail panel */}
+              {selDay && (
+                <div style={{background:T.card,border:`1.5px solid ${T.forest}33`,borderRadius:16,padding:16}}>
+                  {/* Header */}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div style={{fontFamily:T.display,fontSize:15,color:T.forest,fontWeight:400,textTransform:"capitalize"}}>
+                      📅 {new Date(selDay+"T12:00").toLocaleDateString("es",{weekday:"long",day:"numeric",month:"long"})}
+                    </div>
+                    {(calTasksByDate[selDay]||[]).length>0 && (
+                      <div style={{fontSize:11,color:T.muted}}>
+                        {(calTasksByDate[selDay]||[]).filter(t=>t.done).length}/{(calTasksByDate[selDay]||[]).length} hechas
+                      </div>
+                    )}
+                  </div>
+
+                  {(calTasksByDate[selDay]||[]).length===0 ? (
+                    <div style={{fontSize:12,color:T.muted,fontStyle:"italic",textAlign:"center",padding:"16px 0"}}>
+                      Sin tareas este día
+                    </div>
+                  ) : (
+                    // Group by pillar
+                    (() => {
+                      const dayTasks = calTasksByDate[selDay]||[];
+                      const grouped = {};
+                      dayTasks.forEach(t => {
+                        (grouped[t.pillarId] = grouped[t.pillarId]||[]).push(t);
+                      });
+                      return (
+                        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                          {Object.entries(grouped).map(([pid, ptasks])=>{
+                            const p = ALL_PILLARS.find(x=>x.id===pid);
+                            const doneCount = ptasks.filter(t=>t.done).length;
+                            return (
+                              <div key={pid}>
+                                {/* Pillar header */}
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                                  marginBottom:6,paddingBottom:6,borderBottom:`1px solid ${p?.color||T.border}22`}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                                    <div style={{width:8,height:8,borderRadius:"50%",background:p?.color||T.forest}}/>
+                                    <span style={{fontSize:12,color:p?.color||T.forest,fontWeight:500}}>{p?.icon} {p?.name}</span>
+                                  </div>
+                                  <span style={{fontSize:11,color:T.muted}}>{doneCount}/{ptasks.length}</span>
+                                </div>
+                                {/* Tasks for this pillar */}
+                                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                                  {ptasks.map(task=>(
+                                    task.done
+                                      ? <DoneRow key={task.id} task={task}/>
+                                      : <TaskRow key={task.id} task={task}/>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ═══ TAREAS DE HOY ═══ */}
         {calView==="tasks" && (
@@ -3954,8 +4476,8 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
 // ═══════════════════════════════════════════════════════════════
 // SUPABASE CLIENT
 // ═══════════════════════════════════════════════════════════════
-const SUPA_URL  = "https://iiconaicebgryovfmjyr.supabase.co";
-const SUPA_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpY29uYWljZWJncnlvdmZtanlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTYxNDQsImV4cCI6MjA4ODc3MjE0NH0.NoIX3Dh-YuI64Uq1Izsnx73mMEYdCdxE_IaU2V2Cgxs";
+const SUPA_URL  = "%%SUPABASE_URL%%";
+const SUPA_KEY  = "%%SUPABASE_ANON_KEY%%";
 const TERMS_VERSION = "1.0.0";
 
 // Minimal Supabase client (no SDK needed — pure fetch)
@@ -4113,28 +4635,6 @@ function AuthScreen({ onAuth }) {
     if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres");
     if (!consent) return setError("Debes aceptar los Términos y Política de Privacidad para continuar");
     setLoading(true); setError("");
-
-    // Check HaveIBeenPwned — k-anonymity model (solo enviamos 5 chars del hash, nunca la contraseña)
-    try {
-      const msgBuf = new TextEncoder().encode(password);
-      const hashBuf = await crypto.subtle.digest("SHA-1", msgBuf);
-      const hashHex = Array.from(new Uint8Array(hashBuf)).map(b=>b.toString(16).padStart(2,"0")).join("").toUpperCase();
-      const prefix = hashHex.slice(0,5);
-      const suffix = hashHex.slice(5);
-      const resp = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
-      if (resp.ok) {
-        const text = await resp.text();
-        const found = text.split("\n").some(line => line.split(":")[0] === suffix);
-        if (found) {
-          setLoading(false);
-          setError("⚠️ Esta contraseña aparece en filtraciones de datos conocidas. Por tu seguridad elige una contraseña diferente.");
-          return;
-        }
-      }
-    } catch(e) {
-      // Si falla la verificación (sin internet, etc.) continuamos igual
-    }
-
     const data = await supa.signUp(email, password);
     setLoading(false);
     if (data.error) { setError(data.error.message || "Error al registrar"); return; }

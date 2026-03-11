@@ -4667,12 +4667,19 @@ function AuthScreen({ onAuth }) {
         Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.
       </div>
       <div style={{fontSize:12,color:T.muted,background:`${T.amber}12`,border:`1px solid ${T.amber}33`,
-        borderRadius:12,padding:"10px 16px"}}>
-        ¿No llegó? Revisa tu carpeta de spam 📁
+        borderRadius:12,padding:"12px 16px",maxWidth:300,lineHeight:1.6}}>
+        ¿No llegó? Revisa tu carpeta de spam 📁<br/>
+        <strong>Después de confirmar, regresa aquí e inicia sesión.</strong>
       </div>
-      <button onClick={()=>setMode("login")} style={{background:"transparent",border:`1px solid ${T.border}`,
-        borderRadius:12,padding:"11px 24px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
-        Volver al inicio
+      <button onClick={()=>{setMode("login");setError("");setMsg("✅ Email confirmado. Ahora ingresa con tu contraseña.");}}
+        style={{background:`linear-gradient(135deg,${T.forest},${T.forest}cc)`,border:"none",
+          borderRadius:12,padding:"13px 28px",fontSize:14,color:"#fff",cursor:"pointer",
+          fontFamily:T.body,fontWeight:500,boxShadow:`0 4px 16px ${T.forest}33`}}>
+        Ya confirmé → Iniciar sesión
+      </button>
+      <button onClick={()=>setMode("login")} style={{background:"transparent",border:"none",
+        fontSize:12,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+        Volver
       </button>
     </div>
   );
@@ -5071,7 +5078,8 @@ function App() {
   }
 
   async function handleAuth(token, user) {
-    setSession({ access_token: token, user });
+    const sess = { access_token: token, user };
+    setSession(sess);
     await loadUserData(token, user);
   }
 
@@ -5079,16 +5087,22 @@ function App() {
     setPillars(ids); setName(n); setBirthdate(bd);
     setGender(g); setProfiles(pp); setPropositos(props||[]);
 
-    // Save profile to Supabase
-    try {
-      await supa.upsertProfile(session.access_token, session.user.id, {
-        name: n, birthdate: bd, gender: g,
-        active_pillars: ids, propositos: props||[],
-        pillar_profiles: pp
-      });
-      await supa.logConsent(session.access_token, session.user.id);
-    } catch(e) {}
+    // Use current session state (already set before onboarding)
+    const tok = session?.access_token;
+    const uid = session?.user?.id;
 
+    if (tok && uid) {
+      try {
+        await supa.upsertProfile(tok, uid, {
+          name: n, birthdate: bd, gender: g,
+          active_pillars: ids, propositos: props||[],
+          pillar_profiles: pp
+        });
+        await supa.logConsent(tok, uid);
+      } catch(e) {
+        console.error("Profile save error:", e);
+      }
+    }
     setAuthState("ready");
   }
 

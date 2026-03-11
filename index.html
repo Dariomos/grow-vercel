@@ -4615,18 +4615,26 @@ function AuthScreen({ onAuth }) {
   async function handleLogin() {
     if (!email || !password) return setError("Completa todos los campos");
     setLoading(true); setError("");
-    const data = await supa.signIn(email, password);
-    setLoading(false);
-    if (data.error || !data.access_token) {
-      setError(data.error?.message || data.msg || "Email o contraseña incorrectos");
-      return;
+    try {
+      const data = await supa.signIn(email, password);
+      setLoading(false);
+
+      // Show raw error for debugging
+      if (!data) { setError("Sin respuesta del servidor"); return; }
+      if (data.error_description) { setError(data.error_description); return; }
+      if (data.error) { setError(typeof data.error === "string" ? data.error : data.error?.message || JSON.stringify(data.error)); return; }
+      if (!data.access_token) { setError("No se recibió token. Respuesta: " + JSON.stringify(data).slice(0,120)); return; }
+
+      if (!data.user?.email_confirmed_at) {
+        setError("Confirma tu email antes de ingresar. Revisa tu bandeja de entrada.");
+        return;
+      }
+      supa.saveSession({ access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
+      onAuth(data.access_token, data.user);
+    } catch(e) {
+      setLoading(false);
+      setError("Error de conexión: " + e.message);
     }
-    if (!data.user?.email_confirmed_at) {
-      setError("Confirma tu email antes de ingresar. Revisa tu bandeja de entrada.");
-      return;
-    }
-    supa.saveSession({ access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
-    onAuth(data.access_token, data.user);
   }
 
   async function handleRegister() {
@@ -5073,6 +5081,8 @@ function App() {
         setAuthState("ready");
       }
     } catch(e) {
+      console.error("loadUserData error:", e);
+      supa.clearSession();
       setAuthState("auth");
     }
   }

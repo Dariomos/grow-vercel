@@ -2610,19 +2610,27 @@ Reglas estrictas:
 /* ═══════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════ */
-function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles, propositos=[] }) {
+function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles, propositos=[], initialTasks=[], session=null, onSignOut=null }) {
   const [tab, setTab]         = useState("home");
   const [detail, setDetail]   = useState(null);
   const [demoProgress, setDemoProgress] = useState(0);
   // Tasks state
-  const [tasks, setTasks]     = useState(() => {
-    try { return JSON.parse(localStorage.getItem("grow_tasks") || "[]"); } catch { return []; }
-  });
+  const [tasks, setTasks]     = useState(initialTasks);
   const [notifGranted, setNotifGranted] = useState(typeof Notification !== "undefined" && Notification.permission === "granted");
 
   // Persist tasks
+  // Sync tasks to Supabase when they change
   useEffect(() => {
-    try { localStorage.setItem("grow_tasks", JSON.stringify(tasks)); } catch {}
+    if (!session?.access_token || !session?.user?.id) return;
+    // Debounce — save after 1.5s of no changes
+    const timer = setTimeout(async () => {
+      try {
+        for (const task of tasks) {
+          await supa.upsertTask(session.access_token, session.user.id, task);
+        }
+      } catch(e) {}
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [tasks]);
 
   function addTask(pillarId, text, dueDate, time) {
@@ -2634,7 +2642,13 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
   function toggleTask(id) {
     setTasks(p => p.map(t => t.id === id ? { ...t, done: !t.done, doneAt: !t.done ? new Date().toISOString() : null } : t));
   }
-  function deleteTask(id) { setTasks(p => p.filter(t => t.id !== id)); }
+  function deleteTask(id) {
+    setTasks(p => p.filter(t => t.id !== id));
+    if (session?.access_token) {
+      supa.deleteSingleTask(session.access_token, String(id)).catch(()=>{});
+    }
+  }
+  function editTask(id, changes) { setTasks(p => p.map(t => t.id===id ? {...t,...changes} : t)); }
 
   function scheduleNotif(task) {
     if (!("serviceWorker" in navigator) || !notifGranted) return;
@@ -3394,7 +3408,25 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
 
     function TaskRow({task, showDate=false}) {
       const tp = ALL_PILLARS.find(p=>p.id===task.pillarId);
-      return (
+      const [mode, setMode] = useState("view"); // view | edit | replace | confirm_delete
+
+      // Edit mode state
+      const [editText, setEditText] = useState(task.text);
+      const [editDate, setEditDate] = useState(task.dueDate||"");
+      const [editTime, setEditTime] = useState(task.time||"");
+
+      function saveEdit() {
+        editTask(task.id, { text:editText, dueDate:editDate, time:editTime });
+        setMode("view");
+      }
+
+      function saveReplace() {
+        editTask(task.id, { text:editText, dueDate:editDate, time:editTime });
+        setMode("view");
+      }
+
+      // VIEW mode
+      if (mode === "view") return (
         <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,
           padding:"12px 14px",display:"flex",alignItems:"flex-start",gap:12,
           boxShadow:`0 2px 8px ${T.sand}33`}}>
@@ -3407,17 +3439,117 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
             <div style={{fontSize:14,color:T.ink,fontWeight:300,lineHeight:1.5}}>{task.text}</div>
             <div style={{fontSize:11,color:T.muted,marginTop:3,display:"flex",gap:8,flexWrap:"wrap"}}>
               {showDate && task.dueDate && <span>📅 {new Date(task.dueDate+"T12:00").toLocaleDateString("es",{weekday:"short",day:"numeric",month:"short"})}</span>}
+              {!showDate && task.dueDate && task.dueDate !== today && <span>📅 {new Date(task.dueDate+"T12:00").toLocaleDateString("es",{day:"numeric",month:"short"})}</span>}
               {task.time && <span>🕐 {task.time}</span>}
-              {task.recurring && <span style={{color:tp?.color}}>🔄 recurrente</span>}
+              {task.recurring && <span style={{color:tp?.color}}>🔄</span>}
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <div style={{width:8,height:8,borderRadius:"50%",background:tp?.color||T.forest}}/>
-            <button onClick={()=>deleteTask(task.id)}
-              style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:16,padding:"0 2px",opacity:.5}}>×</button>
+          {/* Action buttons */}
+          <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+            <button onClick={()=>{setEditText(task.text);setEditDate(task.dueDate||"");setEditTime(task.time||"");setMode("edit");}}
+              style={{background:"none",border:"none",fontSize:13,cursor:"pointer",padding:"2px 4px",opacity:.5,color:T.ink}}
+              title="Editar">✏️</button>
+            <button onClick={()=>{setEditText("");setEditDate(task.dueDate||"");setEditTime(task.time||"");setMode("replace");}}
+              style={{background:"none",border:"none",fontSize:13,cursor:"pointer",padding:"2px 4px",opacity:.5,color:T.ink}}
+              title="Reemplazar">🔄</button>
+            <button onClick={()=>setMode("confirm_delete")}
+              style={{background:"none",border:"none",fontSize:15,cursor:"pointer",padding:"2px 4px",opacity:.45,color:T.muted}}>×</button>
           </div>
         </div>
       );
+
+      // CONFIRM DELETE
+      if (mode === "confirm_delete") return (
+        <div style={{background:`${T.blush}10`,border:`1.5px solid ${T.blush}55`,borderRadius:14,padding:"12px 14px"}}>
+          <div style={{fontSize:13,color:T.ink,marginBottom:10,lineHeight:1.4}}>
+            ¿Eliminar <strong>"{task.text}"</strong>?
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>deleteTask(task.id)}
+              style={{flex:1,background:T.blush,border:"none",borderRadius:10,padding:"9px",
+                fontSize:13,color:"#fff",cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+              Sí, eliminar
+            </button>
+            <button onClick={()=>setMode("view")}
+              style={{flex:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"9px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+
+      // EDIT mode
+      if (mode === "edit") return (
+        <div style={{background:T.card,border:`1.5px solid ${tp?.color||T.forest}44`,borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:11,color:T.muted,fontFamily:T.display,fontStyle:"italic"}}>
+            ✏️ Editando tarea
+          </div>
+          <input value={editText} onChange={e=>setEditText(e.target.value)}
+            autoFocus onKeyDown={e=>e.key==="Enter"&&saveEdit()}
+            style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+              padding:"9px 12px",fontSize:14,color:T.ink,fontFamily:T.body,outline:"none",width:"100%"}}/>
+          <div style={{display:"flex",gap:8}}>
+            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+              style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"7px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+            <input type="time" value={editTime} onChange={e=>setEditTime(e.target.value)}
+              style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"7px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={saveEdit}
+              style={{flex:1,background:`linear-gradient(135deg,${tp?.color||T.forest},${tp?.color||T.forest}cc)`,
+                border:"none",borderRadius:10,padding:"10px",fontSize:13,color:"#fff",
+                cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+              Guardar ✓
+            </button>
+            <button onClick={()=>setMode("view")}
+              style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"10px 14px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+
+      // REPLACE mode
+      if (mode === "replace") return (
+        <div style={{background:T.card,border:`1.5px solid ${T.amber}55`,borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:11,color:T.amber,fontFamily:T.display,fontStyle:"italic"}}>
+            🔄 Reemplazar tarea
+          </div>
+          <div style={{fontSize:11,color:T.muted,textDecoration:"line-through",paddingLeft:4}}>{task.text}</div>
+          <input value={editText} onChange={e=>setEditText(e.target.value)}
+            autoFocus placeholder="Nueva actividad..."
+            onKeyDown={e=>e.key==="Enter"&&saveReplace()}
+            style={{background:T.surface,border:`1px solid ${T.amber}55`,borderRadius:10,
+              padding:"9px 12px",fontSize:14,color:T.ink,fontFamily:T.body,outline:"none",width:"100%"}}/>
+          <div style={{display:"flex",gap:8}}>
+            <input type="date" value={editDate} onChange={e=>setEditDate(e.target.value)}
+              style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"7px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+            <input type="time" value={editTime} onChange={e=>setEditTime(e.target.value)}
+              style={{flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"7px 10px",fontSize:12,color:T.ink,fontFamily:T.body,outline:"none"}}/>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={saveReplace}
+              style={{flex:1,background:`linear-gradient(135deg,${T.amber},${T.amber}cc)`,
+                border:"none",borderRadius:10,padding:"10px",fontSize:13,color:"#fff",
+                cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+              Reemplazar ✓
+            </button>
+            <button onClick={()=>setMode("view")}
+              style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+                padding:"10px 14px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      );
+
+      return null;
     }
 
     function DoneRow({task}) {
@@ -3769,6 +3901,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
         <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="detail"?"block":"none"}}><DetailTab/></div>
         <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="community"?"block":"none"}}><CommunityTab/></div>
         <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="tasks"?"block":"none"}}><TasksTab/></div>
+        <div className="grow-scroll" style={{position:"absolute",top:0,left:0,right:0,bottom:0,display:tab==="cuenta"?"block":"none"}}><AccountSettings session={session} onSignOut={onSignOut} onDeleteAccount={onSignOut}/></div>
       </div>
 
       {/* Bottom nav */}
@@ -3782,7 +3915,7 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
           {id:"tasks",     icon:"✓",  label:"Tareas"},
           {id:"aria",      icon:"🌿", label:"ARIA",      special:true},
           {id:"community", icon:"🤝", label:"Comunidad"},
-          {id:"stats",     icon:"◈",  label:"Progreso"},
+          {id:"cuenta",    icon:"👤", label:"Cuenta"},
         ].map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
             style={{
@@ -3817,24 +3950,619 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
 }
 
 /* ─── Root ──────────────────────────────────────────────────── */
+
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE CLIENT
+// ═══════════════════════════════════════════════════════════════
+const SUPA_URL  = "https://iiconaicebgryovfmjyr.supabase.co";
+const SUPA_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpY29uYWljZWJncnlvdmZtanlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxOTYxNDQsImV4cCI6MjA4ODc3MjE0NH0.NoIX3Dh-YuI64Uq1Izsnx73mMEYdCdxE_IaU2V2Cgxs";
+const TERMS_VERSION = "1.0.0";
+
+// Minimal Supabase client (no SDK needed — pure fetch)
+const supa = {
+  // Auth
+  async signUp(email, password) {
+    const r = await fetch(`${SUPA_URL}/auth/v1/signup`, {
+      method:"POST", headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password })
+    });
+    return r.json();
+  },
+  async signIn(email, password) {
+    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=password`, {
+      method:"POST", headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+      body: JSON.stringify({ email, password })
+    });
+    return r.json();
+  },
+  async signOut(token) {
+    await fetch(`${SUPA_URL}/auth/v1/logout`, {
+      method:"POST", headers:{"apikey":SUPA_KEY,"Authorization":`Bearer ${token}`}
+    });
+  },
+  async resetPassword(email) {
+    const r = await fetch(`${SUPA_URL}/auth/v1/recover`, {
+      method:"POST", headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+      body: JSON.stringify({ email })
+    });
+    return r.json();
+  },
+  async refreshToken(refreshToken) {
+    const r = await fetch(`${SUPA_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method:"POST", headers:{"apikey":SUPA_KEY,"Content-Type":"application/json"},
+      body: JSON.stringify({ refresh_token: refreshToken })
+    });
+    return r.json();
+  },
+
+  // DB helpers
+  headers(token) {
+    return { "apikey":SUPA_KEY, "Authorization":`Bearer ${token}`,
+             "Content-Type":"application/json", "Prefer":"return=representation" };
+  },
+
+  async getProfile(token, userId) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/profiles?id=eq.${userId}&select=*`, {
+      headers: this.headers(token)
+    });
+    const d = await r.json();
+    return Array.isArray(d) ? d[0] : null;
+  },
+
+  async upsertProfile(token, userId, data) {
+    await fetch(`${SUPA_URL}/rest/v1/profiles`, {
+      method:"POST",
+      headers: {...this.headers(token), "Prefer":"resolution=merge-duplicates"},
+      body: JSON.stringify({ id: userId, ...data, updated_at: new Date().toISOString() })
+    });
+  },
+
+  async getTasks(token, userId) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/tasks?user_id=eq.${userId}&order=created_at.asc`, {
+      headers: this.headers(token)
+    });
+    const d = await r.json();
+    return Array.isArray(d) ? d : [];
+  },
+
+  async upsertTask(token, userId, task) {
+    await fetch(`${SUPA_URL}/rest/v1/tasks`, {
+      method:"POST",
+      headers: {...this.headers(token), "Prefer":"resolution=merge-duplicates"},
+      body: JSON.stringify({
+        id: String(task.id), user_id: userId,
+        pillar_id: task.pillarId, text: task.text,
+        due_date: task.dueDate, time: task.time,
+        done: task.done, done_at: task.doneAt,
+        recurring: task.recurring || false,
+        updated_at: new Date().toISOString()
+      })
+    });
+  },
+
+  async deleteSingleTask(token, taskId) {
+    await fetch(`${SUPA_URL}/rest/v1/tasks?id=eq.${taskId}`, {
+      method:"DELETE", headers: this.headers(token)
+    });
+  },
+
+  async logConsent(token, userId) {
+    await fetch(`${SUPA_URL}/rest/v1/consent_log`, {
+      method:"POST", headers: this.headers(token),
+      body: JSON.stringify({
+        user_id: userId, version: TERMS_VERSION,
+        user_agent: navigator.userAgent.slice(0,200)
+      })
+    });
+  },
+
+  async requestDeletion(token, userId, reason) {
+    await fetch(`${SUPA_URL}/rest/v1/deletion_requests`, {
+      method:"POST", headers: this.headers(token),
+      body: JSON.stringify({ user_id: userId, reason })
+    });
+  },
+
+  // Persist session in localStorage
+  saveSession(session) {
+    try { localStorage.setItem("grow_session", JSON.stringify(session)); } catch {}
+  },
+  loadSession() {
+    try { return JSON.parse(localStorage.getItem("grow_session")); } catch { return null; }
+  },
+  clearSession() {
+    try { localStorage.removeItem("grow_session"); } catch {}
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH SCREEN — Login / Register
+// ═══════════════════════════════════════════════════════════════
+function AuthScreen({ onAuth }) {
+  const [mode,     setMode]     = useState("login"); // login | register | reset | verify
+  const [email,    setEmail]    = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm,  setConfirm]  = useState("");
+  const [consent,  setConsent]  = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState("");
+  const [msg,      setMsg]      = useState("");
+  const [showPass, setShowPass] = useState(false);
+
+  async function handleLogin() {
+    if (!email || !password) return setError("Completa todos los campos");
+    setLoading(true); setError("");
+    const data = await supa.signIn(email, password);
+    setLoading(false);
+    if (data.error || !data.access_token) {
+      setError(data.error?.message || data.msg || "Email o contraseña incorrectos");
+      return;
+    }
+    if (!data.user?.email_confirmed_at) {
+      setError("Confirma tu email antes de ingresar. Revisa tu bandeja de entrada.");
+      return;
+    }
+    supa.saveSession({ access_token: data.access_token, refresh_token: data.refresh_token, user: data.user });
+    onAuth(data.access_token, data.user);
+  }
+
+  async function handleRegister() {
+    if (!email || !password || !confirm) return setError("Completa todos los campos");
+    if (password !== confirm) return setError("Las contraseñas no coinciden");
+    if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres");
+    if (!consent) return setError("Debes aceptar los Términos y Política de Privacidad para continuar");
+    setLoading(true); setError("");
+    const data = await supa.signUp(email, password);
+    setLoading(false);
+    if (data.error) { setError(data.error.message || "Error al registrar"); return; }
+    setMode("verify");
+  }
+
+  async function handleReset() {
+    if (!email) return setError("Ingresa tu email");
+    setLoading(true); setError("");
+    await supa.resetPassword(email);
+    setLoading(false);
+    setMsg("Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo.");
+  }
+
+  const inp = {
+    background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12,
+    padding: "13px 14px", fontSize: 15, color: T.ink, fontFamily: T.body,
+    outline: "none", width: "100%"
+  };
+
+  if (showPrivacy) return <PrivacyPolicy onBack={()=>setShowPrivacy(false)}/>;
+
+  if (mode === "verify") return (
+    <div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",
+      justifyContent:"center",padding:32,background:"#F7F3ED",gap:20,textAlign:"center"}}>
+      <div style={{fontSize:56}}>📬</div>
+      <div style={{fontFamily:T.display,fontSize:26,fontWeight:300,color:T.forest}}>Confirma tu email</div>
+      <div style={{fontSize:14,color:T.muted,lineHeight:1.7,maxWidth:300}}>
+        Te enviamos un enlace de confirmación a <strong style={{color:T.ink}}>{email}</strong>.
+        Revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.
+      </div>
+      <div style={{fontSize:12,color:T.muted,background:`${T.amber}12`,border:`1px solid ${T.amber}33`,
+        borderRadius:12,padding:"10px 16px"}}>
+        ¿No llegó? Revisa tu carpeta de spam 📁
+      </div>
+      <button onClick={()=>setMode("login")} style={{background:"transparent",border:`1px solid ${T.border}`,
+        borderRadius:12,padding:"11px 24px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+        Volver al inicio
+      </button>
+    </div>
+  );
+
+  return (
+    <div style={{height:"100%",overflowY:"auto",background:"#F7F3ED",display:"flex",
+      flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px"}}>
+
+      {/* Logo */}
+      <div style={{marginBottom:32,textAlign:"center"}}>
+        <div style={{width:72,height:72,borderRadius:22,background:`linear-gradient(145deg,${T.forest}22,${T.amber}22)`,
+          border:`1.5px solid ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",
+          fontSize:36,margin:"0 auto 14px"}}>🌱</div>
+        <div style={{fontFamily:T.display,fontSize:40,fontWeight:300,color:T.forest,letterSpacing:-1}}>Grow</div>
+        <div style={{fontSize:11,color:T.muted,letterSpacing:2,textTransform:"uppercase",marginTop:2}}>by Building Together</div>
+      </div>
+
+      {/* Card */}
+      <div style={{width:"100%",maxWidth:400,background:"#fff",borderRadius:20,
+        border:`1px solid ${T.border}`,padding:"28px 24px",
+        boxShadow:"0 8px 40px rgba(0,0,0,.06)"}}>
+
+        {/* Tab toggle */}
+        {mode !== "reset" && (
+          <div style={{display:"flex",background:T.bg,borderRadius:12,padding:3,
+            border:`1px solid ${T.border}`,marginBottom:24}}>
+            {[{id:"login",label:"Ingresar"},{id:"register",label:"Registrarse"}].map(t=>(
+              <button key={t.id} onClick={()=>{setMode(t.id);setError("");}}
+                style={{flex:1,background:mode===t.id?"#fff":"transparent",
+                  border:mode===t.id?`1px solid ${T.border}`:"none",
+                  borderRadius:10,padding:"9px",fontSize:13,
+                  color:mode===t.id?T.ink:T.muted,cursor:"pointer",
+                  fontFamily:T.body,fontWeight:mode===t.id?500:300,transition:"all .2s"}}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {mode === "reset" && (
+          <div style={{marginBottom:20}}>
+            <div style={{fontFamily:T.display,fontSize:20,color:T.ink,marginBottom:4}}>Recuperar contraseña</div>
+            <div style={{fontSize:12,color:T.muted}}>Te enviaremos un enlace a tu email</div>
+          </div>
+        )}
+
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {/* Email */}
+          <div>
+            <div style={{fontSize:11,color:T.muted,marginBottom:5,letterSpacing:.5}}>EMAIL</div>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
+              placeholder="tu@email.com" style={inp}
+              onKeyDown={e=>e.key==="Enter"&&(mode==="login"?handleLogin():mode==="reset"?handleReset():null)}/>
+          </div>
+
+          {/* Password */}
+          {mode !== "reset" && (
+            <div>
+              <div style={{fontSize:11,color:T.muted,marginBottom:5,letterSpacing:.5}}>CONTRASEÑA</div>
+              <div style={{position:"relative"}}>
+                <input type={showPass?"text":"password"} value={password}
+                  onChange={e=>setPassword(e.target.value)}
+                  placeholder={mode==="register"?"Mínimo 8 caracteres":"Tu contraseña"}
+                  style={{...inp,paddingRight:44}}
+                  onKeyDown={e=>e.key==="Enter"&&mode==="login"&&handleLogin()}/>
+                <button onClick={()=>setShowPass(p=>!p)}
+                  style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",
+                    background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.muted}}>
+                  {showPass?"🙈":"👁️"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Confirm password */}
+          {mode === "register" && (
+            <div>
+              <div style={{fontSize:11,color:T.muted,marginBottom:5,letterSpacing:.5}}>CONFIRMAR CONTRASEÑA</div>
+              <input type={showPass?"text":"password"} value={confirm}
+                onChange={e=>setConfirm(e.target.value)}
+                placeholder="Repite tu contraseña" style={inp}/>
+            </div>
+          )}
+
+          {/* Consent checkbox — required for registration */}
+          {mode === "register" && (
+            <div style={{background:`${T.forest}06`,border:`1px solid ${T.forest}22`,
+              borderRadius:12,padding:"12px 14px",display:"flex",gap:10,alignItems:"flex-start"}}>
+              <input type="checkbox" id="consent" checked={consent}
+                onChange={e=>setConsent(e.target.checked)}
+                style={{marginTop:2,width:16,height:16,accentColor:T.forest,cursor:"pointer",flexShrink:0}}/>
+              <label htmlFor="consent" style={{fontSize:12,color:T.muted,lineHeight:1.6,cursor:"pointer"}}>
+                Acepto los{" "}
+                <button onClick={()=>setShowPrivacy(true)}
+                  style={{background:"none",border:"none",color:T.forest,cursor:"pointer",
+                    fontSize:12,padding:0,textDecoration:"underline"}}>
+                  Términos de Uso y Política de Privacidad
+                </button>.
+                {" "}Mis datos se almacenan en Australia conforme a la Privacy Act 1988 y legislaciones equivalentes de LATAM.
+              </label>
+            </div>
+          )}
+
+          {/* Error / message */}
+          {error && (
+            <div style={{background:`${T.blush}15`,border:`1px solid ${T.blush}55`,
+              borderRadius:10,padding:"10px 14px",fontSize:12,color:"#c0392b"}}>
+              {error}
+            </div>
+          )}
+          {msg && (
+            <div style={{background:`${T.forest}10`,border:`1px solid ${T.forest}33`,
+              borderRadius:10,padding:"10px 14px",fontSize:12,color:T.forest}}>
+              {msg}
+            </div>
+          )}
+
+          {/* Main CTA */}
+          <button onClick={mode==="login"?handleLogin:mode==="reset"?handleReset:handleRegister}
+            disabled={loading}
+            style={{background:loading?"#ccc":`linear-gradient(135deg,${T.forest},${T.forest}cc)`,
+              border:"none",borderRadius:12,padding:"14px",fontSize:14,color:"#fff",
+              cursor:loading?"not-allowed":"pointer",fontFamily:T.body,fontWeight:500,
+              boxShadow:`0 4px 16px ${T.forest}33`,transition:"all .2s",marginTop:4}}>
+            {loading ? "⏳ Un momento..." : mode==="login" ? "Ingresar →" : mode==="reset" ? "Enviar enlace" : "Crear cuenta →"}
+          </button>
+
+          {/* Secondary actions */}
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+            {mode === "login" && (
+              <button onClick={()=>{setMode("reset");setError("");setMsg("");}}
+                style={{background:"none",border:"none",fontSize:12,color:T.muted,
+                  cursor:"pointer",fontFamily:T.body,padding:0,textDecoration:"underline"}}>
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
+            {mode === "reset" && (
+              <button onClick={()=>{setMode("login");setError("");setMsg("");}}
+                style={{background:"none",border:"none",fontSize:12,color:T.muted,
+                  cursor:"pointer",fontFamily:T.body,padding:0}}>
+                ← Volver al inicio
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Legal footer */}
+      <div style={{marginTop:24,fontSize:10,color:T.muted,textAlign:"center",lineHeight:1.8,maxWidth:320}}>
+        🔒 Datos encriptados · Servidores en Sydney, Australia<br/>
+        Privacy Act 1988 · LGPD · Ley 1581 · Ley 25.326<br/>
+        <button onClick={()=>setShowPrivacy(true)}
+          style={{background:"none",border:"none",color:T.forest,cursor:"pointer",
+            fontSize:10,padding:0,textDecoration:"underline"}}>
+          Ver Política de Privacidad completa
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PRIVACY POLICY SCREEN
+// ═══════════════════════════════════════════════════════════════
+function PrivacyPolicy({ onBack }) {
+  return (
+    <div style={{height:"100%",overflowY:"auto",background:"#F7F3ED",padding:"24px 20px 60px"}}>
+      <button onClick={onBack} style={{background:"none",border:"none",color:T.forest,
+        cursor:"pointer",fontSize:14,fontFamily:T.body,marginBottom:20,display:"flex",alignItems:"center",gap:6}}>
+        ← Volver
+      </button>
+      <div style={{maxWidth:600,margin:"0 auto"}}>
+        <div style={{fontFamily:T.display,fontSize:28,fontWeight:300,color:T.forest,marginBottom:4}}>Política de Privacidad</div>
+        <div style={{fontSize:11,color:T.muted,marginBottom:24}}>Versión 1.0.0 · Última actualización: marzo 2026</div>
+
+        {[
+          { title:"1. Quiénes somos", body:"Building Together opera la aplicación Grow, una herramienta de desarrollo personal. Nuestros datos de contacto: privacy@buildingtogether.app" },
+          { title:"2. Qué datos recolectamos", body:"Recolectamos únicamente los datos necesarios para el funcionamiento de la app: dirección de email (para autenticación), nombre y fecha de nacimiento (opcionales, para personalizar la experiencia), pilares de vida seleccionados, propósitos personales, tareas y su progreso." },
+          { title:"3. Dónde almacenamos tus datos", body:"Todos los datos se almacenan en servidores ubicados en Sydney, Australia (región ap-southeast-2 de Supabase), cumpliendo con la Privacy Act 1988 de Australia y sus Australian Privacy Principles (APPs)." },
+          { title:"4. Marco legal aplicable", body:"Esta política cumple con: Privacy Act 1988 (Australia) · LGPD - Lei Geral de Proteção de Dados (Brasil) · LFPDPPP (México) · Ley 1581 de 2012 (Colombia) · Ley 25.326 (Argentina) · Ley 19.628 (Chile) · LOPDP (Ecuador)." },
+          { title:"5. Tus derechos", body:"Tienes derecho a: acceder a tus datos, corregirlos, descargarlos y eliminarlos completamente. Puedes solicitar la eliminación de tu cuenta y todos tus datos desde Configuración → Eliminar mi cuenta. Procesamos las solicitudes en un plazo máximo de 30 días." },
+          { title:"6. Compartir datos", body:"No vendemos ni compartimos tus datos personales con terceros. Usamos Supabase (supabase.com) como proveedor de base de datos y Anthropic (anthropic.com) para el servicio de IA ARIA — solo se envían los mensajes de la conversación, nunca datos de identificación personal." },
+          { title:"7. Seguridad", body:"Los datos se transmiten usando HTTPS/TLS. Las contraseñas se hashean con bcrypt. Los datos en reposo están encriptados. Tenemos Row Level Security activado — cada usuario solo puede acceder a sus propios datos." },
+          { title:"8. Cookies y almacenamiento local", body:"Usamos localStorage únicamente para mantener tu sesión activa en el dispositivo. No usamos cookies de seguimiento ni publicidad." },
+          { title:"9. Menores de edad", body:"Esta aplicación no está dirigida a menores de 16 años. No recolectamos intencionalmente datos de menores." },
+          { title:"10. Cambios a esta política", body:"Notificaremos cambios significativos por email. El uso continuado de la app implica aceptación de la versión vigente." },
+          { title:"11. Contacto", body:"Para ejercer tus derechos o hacer consultas: privacy@buildingtogether.app · Tiempo de respuesta: máximo 30 días hábiles." },
+        ].map(s=>(
+          <div key={s.title} style={{marginBottom:20}}>
+            <div style={{fontFamily:T.display,fontSize:16,fontWeight:400,color:T.ink,marginBottom:6}}>{s.title}</div>
+            <div style={{fontSize:13,color:T.muted,lineHeight:1.8}}>{s.body}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACCOUNT SETTINGS (dentro de la app — opción en el menú)
+// ═══════════════════════════════════════════════════════════════
+function AccountSettings({ session, onSignOut, onDeleteAccount }) {
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function handleDeleteRequest() {
+    setLoading(true);
+    await supa.requestDeletion(session.access_token, session.user.id, deleteReason);
+    setLoading(false);
+    setMsg("Solicitud enviada. Eliminaremos tu cuenta y datos en un plazo de 30 días. Te notificaremos por email.");
+    setTimeout(()=>onDeleteAccount(), 3000);
+  }
+
+  return (
+    <div style={{padding:"20px 16px 80px",display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{fontFamily:T.display,fontSize:22,fontWeight:300,color:T.ink}}>Mi cuenta</div>
+
+      {/* Email */}
+      <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"14px 16px"}}>
+        <div style={{fontSize:11,color:T.muted,letterSpacing:1,marginBottom:4}}>EMAIL</div>
+        <div style={{fontSize:14,color:T.ink}}>{session.user.email}</div>
+      </div>
+
+      {/* Data region */}
+      <div style={{background:`${T.forest}08`,border:`1px solid ${T.forest}22`,borderRadius:14,padding:"14px 16px",display:"flex",gap:12,alignItems:"flex-start"}}>
+        <span style={{fontSize:20}}>🔒</span>
+        <div>
+          <div style={{fontSize:13,color:T.forest,fontWeight:500,marginBottom:3}}>Datos protegidos</div>
+          <div style={{fontSize:11,color:T.muted,lineHeight:1.6}}>
+            Almacenados en Sydney, Australia · Privacy Act 1988 · LGPD · Ley 1581
+          </div>
+        </div>
+      </div>
+
+      {/* Sign out */}
+      <button onClick={onSignOut}
+        style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,
+          padding:"14px 16px",fontSize:14,color:T.ink,cursor:"pointer",fontFamily:T.body,
+          textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+        <span>🚪</span> Cerrar sesión
+      </button>
+
+      {/* Delete account */}
+      {!showDelete ? (
+        <button onClick={()=>setShowDelete(true)}
+          style={{background:`${T.blush}10`,border:`1px solid ${T.blush}44`,borderRadius:14,
+            padding:"14px 16px",fontSize:13,color:T.blush,cursor:"pointer",fontFamily:T.body,
+            textAlign:"left",display:"flex",alignItems:"center",gap:10}}>
+          <span>🗑️</span> Solicitar eliminación de mi cuenta y datos
+        </button>
+      ) : (
+        <div style={{background:`${T.blush}08`,border:`1.5px solid ${T.blush}44`,borderRadius:16,padding:16,display:"flex",flexDirection:"column",gap:12}}>
+          <div style={{fontSize:13,color:T.ink,fontWeight:500}}>¿Eliminar cuenta y todos tus datos?</div>
+          <div style={{fontSize:12,color:T.muted,lineHeight:1.6}}>
+            Esta acción es irreversible. Eliminaremos tu perfil, tareas e historial en un plazo de 30 días conforme a la Privacy Act 1988 y LGPD.
+          </div>
+          {msg ? (
+            <div style={{fontSize:12,color:T.forest,background:`${T.forest}10`,borderRadius:10,padding:"10px 12px"}}>{msg}</div>
+          ) : (
+            <>
+              <textarea value={deleteReason} onChange={e=>setDeleteReason(e.target.value)}
+                placeholder="Motivo (opcional)..."
+                rows={2}
+                style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,
+                  padding:"9px 12px",fontSize:13,color:T.ink,fontFamily:T.body,
+                  outline:"none",resize:"none",width:"100%"}}/>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={handleDeleteRequest} disabled={loading}
+                  style={{flex:1,background:T.blush,border:"none",borderRadius:10,
+                    padding:"10px",fontSize:13,color:"#fff",cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+                  {loading ? "Enviando..." : "Confirmar solicitud"}
+                </button>
+                <button onClick={()=>setShowDelete(false)}
+                  style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,
+                    padding:"10px 14px",fontSize:13,color:T.muted,cursor:"pointer",fontFamily:T.body}}>
+                  Cancelar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// APP ROOT — con autenticación + carga de datos desde Supabase
+// ═══════════════════════════════════════════════════════════════
 function App() {
-  const [ready,      setReady]      = useState(false);
-  const [pillars,    setPillars]    = useState([]);
-  const [name,       setName]       = useState("");
-  const [birthdate,  setBirthdate]  = useState("");
-  const [gender,     setGender]     = useState("");
-  const [profiles,   setProfiles]   = useState({});
-  const [propositos, setPropositos] = useState([]);
+  const [authState, setAuthState] = useState("loading"); // loading | auth | onboarding | ready
+  const [session,   setSession]   = useState(null);
+  const [pillars,   setPillars]   = useState([]);
+  const [name,      setName]      = useState("");
+  const [birthdate, setBirthdate] = useState("");
+  const [gender,    setGender]    = useState("");
+  const [profiles,  setProfiles]  = useState({});
+  const [propositos,setPropositos]= useState([]);
+  const [initTasks, setInitTasks] = useState([]);
+
+  // On mount — try to restore session
+  useEffect(() => {
+    async function init() {
+      const saved = supa.loadSession();
+      if (!saved?.access_token) { setAuthState("auth"); return; }
+
+      // Try to refresh token
+      let token = saved.access_token;
+      let user  = saved.user;
+      try {
+        const refreshed = await supa.refreshToken(saved.refresh_token);
+        if (refreshed.access_token) {
+          token = refreshed.access_token;
+          user  = refreshed.user || user;
+          supa.saveSession({ ...saved, access_token: token, refresh_token: refreshed.refresh_token });
+        }
+      } catch(e) {}
+
+      await loadUserData(token, user);
+    }
+    init();
+  }, []);
+
+  async function loadUserData(token, user) {
+    try {
+      const [profile, tasks] = await Promise.all([
+        supa.getProfile(token, user.id),
+        supa.getTasks(token, user.id)
+      ]);
+
+      if (profile?.active_pillars?.length > 0) {
+        setName(profile.name || "");
+        setBirthdate(profile.birthdate || "");
+        setGender(profile.gender || "");
+        setPillars(profile.active_pillars || []);
+        setProfiles(profile.pillar_profiles || {});
+        setPropositos(profile.propositos || []);
+        // Convert DB tasks to app format
+        setInitTasks(tasks.map(t=>({
+          id: t.id, pillarId: t.pillar_id, text: t.text,
+          dueDate: t.due_date, time: t.time, done: t.done,
+          doneAt: t.done_at, recurring: t.recurring
+        })));
+        setSession({ access_token: token, user });
+        setAuthState("ready");
+      } else {
+        // Registered but hasn't done onboarding
+        setSession({ access_token: token, user });
+        setAuthState("onboarding");
+      }
+    } catch(e) {
+      setAuthState("auth");
+    }
+  }
+
+  async function handleAuth(token, user) {
+    setSession({ access_token: token, user });
+    await loadUserData(token, user);
+  }
+
+  async function handleOnboardingDone(ids, n, bd, g, pp, props) {
+    setPillars(ids); setName(n); setBirthdate(bd);
+    setGender(g); setProfiles(pp); setPropositos(props||[]);
+
+    // Save profile to Supabase
+    try {
+      await supa.upsertProfile(session.access_token, session.user.id, {
+        name: n, birthdate: bd, gender: g,
+        active_pillars: ids, propositos: props||[],
+        pillar_profiles: pp
+      });
+      await supa.logConsent(session.access_token, session.user.id);
+    } catch(e) {}
+
+    setAuthState("ready");
+  }
+
+  async function handleSignOut() {
+    try { await supa.signOut(session?.access_token); } catch(e) {}
+    supa.clearSession();
+    setAuthState("auth");
+    setSession(null); setPillars([]); setName(""); setBirthdate("");
+    setGender(""); setProfiles({}); setPropositos([]); setInitTasks([]);
+  }
+
+  if (authState === "loading") return (
+    <div style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",
+      background:"#F7F3ED",flexDirection:"column",gap:12}}>
+      <div style={{fontSize:36,animation:"bt-float 2s ease-in-out infinite"}}>🌱</div>
+      <div style={{fontFamily:T.display,fontSize:16,color:T.muted,fontStyle:"italic"}}>Cargando...</div>
+    </div>
+  );
+
+  if (authState === "auth") return <AuthScreen onAuth={handleAuth}/>;
+
+  if (authState === "onboarding") return (
+    <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",background:"#EDE8E0"}}>
+      <Onboarding onDone={handleOnboardingDone}/>
+    </div>
+  );
+
   return (
     <div style={{height:"100%",display:"flex",flexDirection:"column",overflow:"hidden",background:"#EDE8E0"}}>
-      {!ready
-        ? <Onboarding onDone={(ids,n,bd,g,pp,props)=>{
-            setPillars(ids); setName(n); setBirthdate(bd);
-            setGender(g); setProfiles(pp); setPropositos(props||[]);
-            setReady(true);
-          }}/>
-        : <MainApp activePillarIds={pillars} userName={name} birthdate={birthdate} gender={gender} pillarProfiles={profiles} propositos={propositos}/>
-      }
+      <MainApp
+        activePillarIds={pillars} userName={name} birthdate={birthdate}
+        gender={gender} pillarProfiles={profiles} propositos={propositos}
+        initialTasks={initTasks}
+        session={session}
+        onSignOut={handleSignOut}
+      />
     </div>
   );
 }

@@ -5691,9 +5691,18 @@ function App() {
 
   // On mount — try to restore session
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      supa.clearSession();
+      setAuthState("auth");
+    }, 8000);
+
     async function init() {
       const saved = supa.loadSession();
-      if (!saved?.access_token) { setAuthState("auth"); return; }
+      if (!saved?.access_token) {
+        clearTimeout(timeout);
+        setAuthState("auth");
+        return;
+      }
 
       // Try to refresh token
       let token = saved.access_token;
@@ -5705,9 +5714,18 @@ function App() {
           user  = refreshed.user || user;
           supa.saveSession({ ...saved, access_token: token, refresh_token: refreshed.refresh_token });
         }
-      } catch(e) {}
+      } catch(e) {
+        // Refresh failed — use existing token or bail
+        if (!token) {
+          clearTimeout(timeout);
+          supa.clearSession();
+          setAuthState("auth");
+          return;
+        }
+      }
 
       await loadUserData(token, user);
+      clearTimeout(timeout);
     }
     init();
   }, []);
@@ -5740,11 +5758,14 @@ function App() {
         setAuthState("onboarding");
       }
     } catch(e) {
+      console.error("loadUserData error:", e);
+      supa.clearSession();
       setAuthState("auth");
     }
   }
 
   async function handleAuth(token, user) {
+    setAuthState("loading");
     setSession({ access_token: token, user });
     await loadUserData(token, user);
   }

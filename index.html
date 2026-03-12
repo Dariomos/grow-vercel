@@ -74,6 +74,65 @@ html,body{height:100%;overflow:hidden;background:#EDE8E0}
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&family=Courier+Prime&display=swap" rel="stylesheet"/>
+  <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#EDE8E0}
+#root{height:100%;display:flex;flex-direction:column;overflow:hidden}
+.grow-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#D4C4A8;border-radius:3px}
+.bt-grain::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:999;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");opacity:0.5}
+@keyframes bt-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bt-rise2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes bt-bloom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+@keyframes bt-breathe{0%,100%{box-shadow:0 0 0 0 #3D6B4F22}50%{box-shadow:0 0 0 10px #3D6B4F00}}
+@keyframes bt-leaf{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}
+@keyframes bt-sprout{from{transform-origin:bottom center;transform:scaleY(0);opacity:0}to{transform-origin:bottom center;transform:scaleY(1);opacity:1}}
+@keyframes bt-unfurl{from{transform-origin:left bottom;transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-unfurl-r{from{transform-origin:right bottom;transform:scale(0) rotate(20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-blossom{0%{transform:scale(0) rotate(-15deg);opacity:0}70%{transform:scale(1.15) rotate(2deg)}100%{transform:scale(1) rotate(0deg);opacity:1}}
+@keyframes bt-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1deg)}}
+@keyframes splash-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.bt-rise{animation:bt-rise .55s cubic-bezier(.22,1,.36,1) both}.bt-rise2{animation:bt-rise2 .4s ease both}.bt-bloom{animation:bt-bloom .45s cubic-bezier(.22,1,.36,1) both}
+.bt-plant-stem{animation:bt-sprout .8s cubic-bezier(.22,1,.36,1) both}.bt-plant-leaf1{animation:bt-unfurl .6s cubic-bezier(.22,1,.36,1) .5s both}.bt-plant-leaf2{animation:bt-unfurl-r .6s cubic-bezier(.22,1,.36,1) .7s both}.bt-plant-leaf3{animation:bt-unfurl .5s cubic-bezier(.22,1,.36,1) .9s both}.bt-plant-leaf4{animation:bt-unfurl-r .5s cubic-bezier(.22,1,.36,1) 1.0s both}.bt-plant-flower{animation:bt-blossom .7s cubic-bezier(.22,1,.36,1) 1.2s both}.bt-plant-float{animation:bt-float 3.5s ease-in-out infinite}
+.bt-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px #D4C4A888;transition:all .25s ease}.bt-btn{transition:all .2s ease}.bt-btn:hover{filter:brightness(1.06);transform:translateY(-1px)}
+#splash{position:fixed;inset:0;background:#F7F3ED;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;transition:opacity .6s ease}
+#splash.fade{opacity:0;pointer-events:none}
+#splash-icon{width:88px;height:88px;border-radius:28px;background:linear-gradient(145deg,#3D6B4F22,#C8872A22);border:1.5px solid #E8DDD0;display:flex;align-items:center;justify-content:center;font-size:42px;animation:splash-breathe 3s ease infinite}
+#splash-title{font-family:"Cormorant Garamond",Georgia,serif;font-size:52px;font-weight:300;letter-spacing:-2px;color:#3D6B4F;line-height:1}
+#splash-sub{font-family:"DM Sans",sans-serif;font-size:12px;color:#8C7B68;font-weight:300;letter-spacing:2px;text-transform:uppercase}
+#install-banner{position:fixed;bottom:0;left:0;right:0;background:#3D6B4F;color:#fff;padding:14px 20px 24px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:1000;border-radius:20px 20px 0 0;font-family:"DM Sans",sans-serif}
+#install-banner.show{display:flex;animation:slideUp .4s ease}
+#install-btn{background:#F7F3ED;color:#3D6B4F;border:none;border-radius:12px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}
+#dismiss-btn{background:transparent;color:#F7F3ED88;border:none;font-size:22px;cursor:pointer;padding:4px;flex-shrink:0}</style>
+</head>
+<body>
+  <div id="splash"><div id="splash-icon">🌱</div><div id="splash-title">Grow</div><div id="splash-sub">by Building Together</div></div>
+  <div id="install-banner">
+    <div style="flex:1"><div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar Grow</div><div style="font-size:12px;opacity:.8">Añade a tu pantalla de inicio</div></div>
+    <button id="install-btn">Instalar</button><button id="dismiss-btn">✕</button>
+  </div>
+  <div id="root"></div>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="text/babel" data-presets="react">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Grow"/>
+  <meta name="theme-color" content="#3D6B4F"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <link rel="apple-touch-icon" href="icons/icon-192.png"/>
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png"/>
+  <title>Grow · Building Together</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&family=Courier+Prime&display=swap" rel="stylesheet"/>
   <style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}html,body{height:100%;overflow:hidden;background:#EDE8E0}#root{height:100%;display:flex;flex-direction:column;overflow:hidden}.grow-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#D4C4A8;border-radius:3px}@keyframes bt-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}@keyframes bt-rise2{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes bt-bloom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}@keyframes bt-breathe{0%,100%{box-shadow:0 0 0 0 #3D6B4F22}50%{box-shadow:0 0 0 10px #3D6B4F00}}@keyframes bt-leaf{0%,100%{transform:rotate(-3deg) scale(1)}50%{transform:rotate(3deg) scale(1.04)}}@keyframes bt-sprout{from{transform-origin:bottom center;transform:scaleY(0);opacity:0}to{transform-origin:bottom center;transform:scaleY(1);opacity:1}}@keyframes bt-unfurl{from{transform-origin:left bottom;transform:scale(0) rotate(-20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}@keyframes bt-unfurl-r{from{transform-origin:right bottom;transform:scale(0) rotate(20deg);opacity:0}to{transform:scale(1) rotate(0deg);opacity:1}}@keyframes bt-blossom{0%{transform:scale(0) rotate(-15deg);opacity:0}70%{transform:scale(1.15) rotate(2deg)}100%{transform:scale(1) rotate(0deg);opacity:1}}@keyframes bt-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1deg)}}@keyframes splash-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}.bt-rise{animation:bt-rise .55s cubic-bezier(.22,1,.36,1) both}.bt-rise2{animation:bt-rise2 .4s ease both}.bt-bloom{animation:bt-bloom .45s cubic-bezier(.22,1,.36,1) both}.bt-plant-stem{animation:bt-sprout .8s cubic-bezier(.22,1,.36,1) both}.bt-plant-leaf1{animation:bt-unfurl .6s cubic-bezier(.22,1,.36,1) .5s both}.bt-plant-leaf2{animation:bt-unfurl-r .6s cubic-bezier(.22,1,.36,1) .7s both}.bt-plant-leaf3{animation:bt-unfurl .5s cubic-bezier(.22,1,.36,1) .9s both}.bt-plant-leaf4{animation:bt-unfurl-r .5s cubic-bezier(.22,1,.36,1) 1.0s both}.bt-plant-flower{animation:bt-blossom .7s cubic-bezier(.22,1,.36,1) 1.2s both}.bt-plant-float{animation:bt-float 3.5s ease-in-out infinite}.bt-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px #D4C4A888;transition:all .25s ease}.bt-btn{transition:all .2s ease}.bt-btn:hover{filter:brightness(1.06);transform:translateY(-1px)}#splash{position:fixed;inset:0;background:#F7F3ED;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999;transition:opacity .6s ease}#splash.fade{opacity:0;pointer-events:none}#splash-icon{width:88px;height:88px;border-radius:28px;background:linear-gradient(145deg,#3D6B4F22,#C8872A22);border:1.5px solid #E8DDD0;display:flex;align-items:center;justify-content:center;font-size:42px;animation:splash-breathe 3s ease infinite}#splash-title{font-family:'Cormorant Garamond',Georgia,serif;font-size:52px;font-weight:300;letter-spacing:-2px;color:#3D6B4F;line-height:1}#splash-sub{font-family:'DM Sans',sans-serif;font-size:12px;color:#8C7B68;font-weight:300;letter-spacing:2px;text-transform:uppercase}#install-banner{position:fixed;bottom:0;left:0;right:0;background:#3D6B4F;color:#fff;padding:14px 20px 24px;display:none;align-items:center;justify-content:space-between;gap:12px;z-index:1000;border-radius:20px 20px 0 0;font-family:'DM Sans',sans-serif}#install-banner.show{display:flex;animation:slideUp .4s ease}#install-btn{background:#F7F3ED;color:#3D6B4F;border:none;border-radius:12px;padding:10px 20px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0}#dismiss-btn{background:transparent;color:#F7F3ED88;border:none;font-size:22px;cursor:pointer;padding:4px;flex-shrink:0}</style>
 </head>
 <body>
@@ -2965,7 +3024,7 @@ function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
 }
 
 /* ── HABITS PANEL COMPONENT ─────────────────────────── */
-function HabitsPanel({ pillar: p, tasks, setTasks }) {
+function HabitsPanel({ pillar: p, tasks, onAddTasks }) {
   const [selHabits, setSelHabits] = useState(new Set());
   const [habitDate, setHabitDate] = useState(new Date().toISOString().slice(0,10));
   const [habitTime, setHabitTime] = useState("08:00");
@@ -3012,8 +3071,7 @@ function HabitsPanel({ pillar: p, tasks, setTasks }) {
 
   function handleAddHabits() {
     const newTasks = buildHabitTasks();
-    newTasks.forEach(t => pendingSave.current.add(String(t.id)));
-    setTasks(prev => [...prev, ...newTasks]);
+    onAddTasks(newTasks);
     setHabitSaved(true);
     setSelHabits(new Set());
     setTimeout(()=>setHabitSaved(false), 3000);
@@ -4006,7 +4064,10 @@ function MainApp({ activePillarIds, userName, birthdate, gender, pillarProfiles,
         <HabitsPanel
           pillar={p}
           tasks={tasks}
-          setTasks={setTasks}
+          onAddTasks={(newTasks)=>{
+            newTasks.forEach(t => pendingSave.current.add(String(t.id)));
+            setTasks(prev => [...prev, ...newTasks]);
+          }}
         />
 
         {/* ARIA CTA */}
@@ -5569,6 +5630,23 @@ function App() {
     window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_dp=e;setTimeout(function(){var b=document.getElementById('install-banner');if(b)b.classList.add('show')},3500)});
     var ib=document.getElementById('install-btn');if(ib)ib.addEventListener('click',function(){if(!_dp)return;_dp.prompt();_dp.userChoice.then(function(){_dp=null;var b=document.getElementById('install-banner');if(b)b.remove()})});
     var db=document.getElementById('dismiss-btn');if(db)db.addEventListener('click',function(){var b=document.getElementById('install-banner');if(b)b.remove()});
+  </script>
+</body>
+</html>
+    ReactDOM.createRoot(document.getElementById("root")).render(
+      <ErrorBoundary><App/></ErrorBoundary>
+    );
+  </script>
+  <script>
+    document.addEventListener("touchmove",function(e){if(e.touches.length>1)e.preventDefault();},{passive:false});
+    if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+    window.addEventListener("load",()=>setTimeout(()=>{const s=document.getElementById("splash");if(s){s.classList.add("fade");setTimeout(()=>s.remove(),700)}},2000));
+    let dp=null;
+    window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();dp=e;setTimeout(()=>document.getElementById("install-banner")?.classList.add("show"),3500)});
+    document.getElementById("install-btn")?.addEventListener("click",async()=>{if(!dp)return;dp.prompt();await dp.userChoice;dp=null;document.getElementById("install-banner")?.remove()});
+    document.getElementById("dismiss-btn")?.addEventListener("click",()=>document.getElementById("install-banner")?.remove());
+    const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent),isStandalone=window.navigator.standalone;
+    if(isIOS&&!isStandalone)setTimeout(()=>{const b=document.getElementById("install-banner");if(b){b.innerHTML=`<div style="flex:1"><div style="font-size:15px;font-weight:500;margin-bottom:3px">📲 Instalar en iPhone</div><div style="font-size:12px;opacity:.8">Toca <strong>Compartir</strong> → "Agregar a inicio"</div></div><button id="dismiss-btn" style="background:transparent;color:#F7F3ED88;border:none;font-size:22px;cursor:pointer;padding:4px;flex-shrink:0">✕</button>`;b.classList.add("show");document.getElementById("dismiss-btn")?.addEventListener("click",()=>b.remove())}},5000);
   </script>
 </body>
 </html>

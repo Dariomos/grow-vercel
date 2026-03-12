@@ -5688,6 +5688,7 @@ function App() {
   const [profiles,  setProfiles]  = useState({});
   const [propositos,setPropositos]= useState([]);
   const [initTasks, setInitTasks] = useState([]);
+  const [debugMsg, setDebugMsg] = useState("");
 
   // On mount — try to restore session
   useEffect(() => {
@@ -5697,12 +5698,14 @@ function App() {
     }, 8000);
 
     async function init() {
+      setDebugMsg("Verificando sesión...");
       const saved = supa.loadSession();
       if (!saved?.access_token) {
         clearTimeout(timeout);
         setAuthState("auth");
         return;
       }
+      setDebugMsg("Sesión encontrada, conectando...");
 
       // Try to refresh token
       let token = saved.access_token;
@@ -5731,6 +5734,7 @@ function App() {
   }, []);
 
   async function loadUserData(token, user) {
+    setDebugMsg("Cargando perfil...");
     try {
       const [profile, tasks] = await Promise.all([
         supa.getProfile(token, user.id),
@@ -5759,12 +5763,13 @@ function App() {
       }
     } catch(e) {
       console.error("loadUserData error:", e);
-      supa.clearSession();
-      setAuthState("auth");
+      setDebugMsg("Error: " + (e?.message || String(e)));
+      setTimeout(()=>{ supa.clearSession(); setAuthState("auth"); }, 3000);
     }
   }
 
   async function handleAuth(token, user) {
+    setDebugMsg("Autenticando...");
     setAuthState("loading");
     setSession({ access_token: token, user });
     await loadUserData(token, user);
@@ -5800,6 +5805,12 @@ function App() {
       background:"#F7F3ED",flexDirection:"column",gap:12}}>
       <div style={{fontSize:36,animation:"bt-float 2s ease-in-out infinite"}}>🌱</div>
       <div style={{fontFamily:T.display,fontSize:16,color:T.muted,fontStyle:"italic"}}>Cargando...</div>
+      <div style={{fontSize:11,color:T.muted,marginTop:8}}>{debugMsg}</div>
+      <button onClick={()=>{supa.clearSession();setAuthState("auth");}}
+        style={{marginTop:16,background:"transparent",border:"1px solid #ccc",borderRadius:10,
+          padding:"8px 20px",fontSize:12,color:"#8C7B68",cursor:"pointer"}}>
+        Volver al login
+      </button>
     </div>
   );
 

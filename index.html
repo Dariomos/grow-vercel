@@ -2722,29 +2722,38 @@ function PillarEditModal({ activePillarIds, onSave, onClose }) {
 
 /* ── PROPÓSITOS CARD ─────────────────────────────────── */
 function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
-  const [editing, setEditing]   = useState(null); // index being edited
-  const [draft,   setDraft]     = useState("");
-  const [adding,  setAdding]    = useState(false);
-  const [newText, setNewText]   = useState("");
+  const [selected,  setSelected]  = useState(null);  // index selected to show pillars
+  const [editing,   setEditing]   = useState(null);  // index being edited
+  const [draft,     setDraft]     = useState("");
+  const [adding,    setAdding]    = useState(false);
+  const [newText,   setNewText]   = useState("");
 
   const filled = (propositos||[]).filter(p=>p&&p.trim());
 
-  function startEdit(i) {
+  function selectProposito(i) {
+    if (editing !== null) return;
+    setSelected(selected === i ? null : i);
+  }
+
+  function openEdit(e, i) {
+    e.stopPropagation();
     setEditing(i);
-    setDraft(propositos[i]||"");
+    setDraft((propositos||[])[i]||"");
+    setSelected(null);
     setAdding(false);
   }
 
-  function saveEdit(i) {
+  function saveEdit() {
+    if (editing === null) return;
     const next = [...(propositos||[])];
-    next[i] = draft.trim();
+    next[editing] = draft.trim();
     setPropositos(next.filter(Boolean));
     setEditing(null);
+    setDraft("");
   }
 
   function deleteProposito(i) {
-    const next = (propositos||[]).filter((_,idx)=>idx!==i);
-    setPropositos(next);
+    setPropositos((propositos||[]).filter((_,idx)=>idx!==i));
     setEditing(null);
   }
 
@@ -2779,11 +2788,11 @@ function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
             Mi Propósito
           </span>
         </div>
-        {!adding && (
-          <button onClick={()=>{ setAdding(true); setEditing(null); }}
+        {!adding && editing===null && (
+          <button onClick={()=>{ setAdding(true); setEditing(null); setSelected(null); }}
             style={{background:`${T.forest}12`,border:`1px solid ${T.forest}33`,
               borderRadius:8,padding:"4px 10px",fontSize:11,color:T.forest,
-              cursor:"pointer",fontFamily:T.body,display:"flex",alignItems:"center",gap:4}}>
+              cursor:"pointer",fontFamily:T.body}}>
             + añadir
           </button>
         )}
@@ -2791,109 +2800,104 @@ function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
 
       {/* Propósitos list */}
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {filled.map((p,i)=>(
-          <div key={i}>
-            {editing === i ? (
-              /* Edit mode */
-              <div style={{background:T.surface,border:`1.5px solid ${T.forest}44`,
-                borderRadius:11,padding:"12px 14px"}}>
-                <div style={{fontSize:10,color:T.forest,fontFamily:T.display,fontStyle:"italic",marginBottom:6}}>
-                  Propósito {i+1}
-                </div>
-                <textarea
-                  value={draft}
-                  onChange={e=>setDraft(e.target.value)}
-                  rows={2}
-                  autoFocus
-                  style={{width:"100%",background:"transparent",border:"none",outline:"none",
-                    fontFamily:T.display,fontSize:13,color:T.ink,lineHeight:1.7,
-                    resize:"none",fontWeight:300}}
-                />
-                {/* Pillar chips in edit mode */}
-                {myPillars.length>0 && (
-                  <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:10,color:T.muted,marginBottom:7}}>Pilares relacionados:</div>
-                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                      {myPillars.map(pl=>(
-                        <span key={pl.id} style={{
-                          fontSize:10,padding:"3px 9px",borderRadius:20,
-                          background:`${pl.color}18`,border:`1px solid ${pl.color}44`,
-                          color:pl.color,fontFamily:T.body,
-                        }}>{pl.icon} {pl.name}</span>
-                      ))}
-                    </div>
+        {filled.map((p,i)=>{
+          const isEditing = editing === i;
+          const isSelected = selected === i;
+          return (
+            <div key={p + i}>
+              {isEditing ? (
+                <div style={{background:T.surface,border:`1.5px solid ${T.forest}44`,
+                  borderRadius:11,padding:"12px 14px"}}>
+                  <div style={{fontSize:10,color:T.forest,fontFamily:T.display,fontStyle:"italic",marginBottom:6}}>
+                    Propósito {i+1}
                   </div>
-                )}
-                <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
-                  <button onClick={()=>deleteProposito(i)}
-                    style={{background:"transparent",border:`1px solid ${T.blush}66`,
-                      borderRadius:7,padding:"5px 10px",fontSize:11,color:T.blush,
-                      cursor:"pointer",fontFamily:T.body}}>
-                    🗑 Eliminar
-                  </button>
-                  <div style={{display:"flex",gap:7}}>
-                    <button onClick={()=>setEditing(null)}
-                      style={{background:"transparent",border:`1px solid ${T.border}`,
-                        borderRadius:7,padding:"5px 10px",fontSize:11,color:T.muted,
+                  <textarea
+                    value={draft}
+                    onChange={e=>setDraft(e.target.value)}
+                    rows={2}
+                    autoFocus
+                    style={{width:"100%",background:"transparent",border:"none",outline:"none",
+                      fontFamily:T.display,fontSize:13,color:T.ink,lineHeight:1.7,
+                      resize:"none",fontWeight:300}}
+                  />
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:10}}>
+                    <button onClick={()=>deleteProposito(i)}
+                      style={{background:"transparent",border:`1px solid ${T.blush}66`,
+                        borderRadius:7,padding:"5px 10px",fontSize:11,color:T.blush,
                         cursor:"pointer",fontFamily:T.body}}>
-                      Cancelar
+                      🗑 Eliminar
                     </button>
-                    <button onClick={()=>saveEdit(i)}
-                      style={{background:T.forest,border:"none",
-                        borderRadius:7,padding:"5px 12px",fontSize:11,color:"#fff",
-                        cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
-                      Guardar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* View mode */
-              <div onClick={()=>startEdit(i)}
-                style={{
-                  display:"flex",flexDirection:"column",gap:8,
-                  padding:"11px 13px",borderRadius:11,cursor:"pointer",
-                  background: i===0 ? `${T.forest}06` : "transparent",
-                  border:`1px solid ${i===0?T.forest+"22":T.border}`,
-                  transition:"all .15s",
-                }}>
-                <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                  {/* Number badge */}
-                  <div style={{
-                    width:20,height:20,borderRadius:"50%",flexShrink:0,
-                    background:i===0?T.forest:`${T.muted}22`,
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    fontSize:10,color:i===0?"#fff":T.muted,fontWeight:"bold",marginTop:1,
-                  }}>
-                    {i+1}
-                  </div>
-                  <div style={{flex:1}}>
-                    <div style={{
-                      fontFamily:T.display,fontSize:13,fontWeight:i===0?400:300,
-                      color:i===0?T.ink:T.muted,lineHeight:1.65,fontStyle:"italic",
-                    }}>
-                      "{p}"
+                    <div style={{display:"flex",gap:7}}>
+                      <button onClick={()=>{ setEditing(null); setDraft(""); }}
+                        style={{background:"transparent",border:`1px solid ${T.border}`,
+                          borderRadius:7,padding:"5px 10px",fontSize:11,color:T.muted,
+                          cursor:"pointer",fontFamily:T.body}}>
+                        Cancelar
+                      </button>
+                      <button onClick={saveEdit}
+                        style={{background:T.forest,border:"none",
+                          borderRadius:7,padding:"5px 12px",fontSize:11,color:"#fff",
+                          cursor:"pointer",fontFamily:T.body,fontWeight:500}}>
+                        Guardar
+                      </button>
                     </div>
                   </div>
-                  <span style={{fontSize:10,color:T.muted,flexShrink:0,marginTop:2}}>✏️</span>
                 </div>
-                {/* Pillar chips — always visible in view mode */}
-                {myPillars.length>0 && (
-                  <div style={{display:"flex",gap:5,flexWrap:"wrap",paddingLeft:30}}>
-                    {myPillars.map(pl=>(
-                      <span key={pl.id} style={{
-                        fontSize:9,padding:"2px 8px",borderRadius:20,
-                        background:`${pl.color}14`,border:`1px solid ${pl.color}33`,
-                        color:pl.color,fontFamily:T.body,
-                        display:"flex",alignItems:"center",gap:3,
-                      }}>{pl.icon} {pl.name}</span>
-                    ))}
+              ) : (
+                <div onClick={()=>selectProposito(i)}
+                  style={{
+                    padding:"11px 13px",borderRadius:11,cursor:"pointer",
+                    background: isSelected ? `${T.forest}10` : i===0 ? `${T.forest}06` : "transparent",
+                    border:`1.5px solid ${isSelected ? T.forest+"55" : i===0 ? T.forest+"22" : T.border}`,
+                    transition:"all .15s",
+                  }}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                    <div style={{
+                      width:20,height:20,borderRadius:"50%",flexShrink:0,
+                      background:isSelected?T.forest:i===0?T.forest:`${T.muted}22`,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      fontSize:10,color:(isSelected||i===0)?"#fff":T.muted,fontWeight:"bold",marginTop:1,
+                    }}>
+                      {i+1}
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{
+                        fontFamily:T.display,fontSize:13,fontWeight:i===0?400:300,
+                        color:i===0?T.ink:T.muted,lineHeight:1.65,fontStyle:"italic",
+                      }}>
+                        "{p}"
+                      </div>
+                    </div>
+                    <button onClick={e=>openEdit(e,i)}
+                      style={{background:"transparent",border:"none",cursor:"pointer",
+                        fontSize:12,color:T.muted,padding:"2px 4px",flexShrink:0}}>
+                      ✏️
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+
+                  {/* Pillars panel — shown below when selected */}
+                  {isSelected && myPillars.length>0 && (
+                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.forest}18`}}>
+                      <div style={{fontSize:10,color:T.forest,marginBottom:7,fontFamily:T.display,fontStyle:"italic"}}>
+                        Pilares que nutren este propósito:
+                      </div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                        {myPillars.map(pl=>(
+                          <span key={pl.id} style={{
+                            fontSize:11,padding:"4px 10px",borderRadius:20,
+                            background:`${pl.color}18`,border:`1px solid ${pl.color}44`,
+                            color:pl.color,fontFamily:T.body,
+                            display:"flex",alignItems:"center",gap:4,
+                          }}>{pl.icon} {pl.name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Add new */}
         {adding && (
@@ -2923,8 +2927,7 @@ function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
                 disabled={!newText.trim()}
                 style={{background:newText.trim()?T.forest:T.border,border:"none",
                   borderRadius:7,padding:"5px 12px",fontSize:11,color:"#fff",
-                  cursor:newText.trim()?"pointer":"default",fontFamily:T.body,fontWeight:500,
-                  transition:"background .2s"}}>
+                  cursor:newText.trim()?"pointer":"default",fontFamily:T.body,fontWeight:500}}>
                 Guardar
               </button>
             </div>
@@ -2934,6 +2937,7 @@ function PropositosCard({ propositos, setPropositos, myPillars=[] }) {
     </div>
   );
 }
+
 
 /* ── HABITS PANEL COMPONENT ─────────────────────────── */
 function HabitsPanel({ pillar: p, tasks, onAddTasks }) {
